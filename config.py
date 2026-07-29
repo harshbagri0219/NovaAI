@@ -1,0 +1,7 @@
+AI_NAME = "Nova"
+
+OWNER = "HANZO"
+
+VERSION = "0.0.1"
+
+OFFLINE_MODE = True
