@@ -1,3 +1,16 @@
 {
-    "owner": "hanzo"
+    "owner": "hanzo",
+    "favorite_language": "Python.",
+    "preferences": {
+        "language": "python.",
+        "food": "Baigan"
+    },
+    "profile": {
+        "city": "Delhi"
+    },
+    "favorite_food": "pizza",
+    "languages": [
+        "Java.",
+        "Python."
+    ]
 }

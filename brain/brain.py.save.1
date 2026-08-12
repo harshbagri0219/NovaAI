@@ -1,0 +1,59 @@
+if ifrom ai.intent import detect_intent
+from brain.context import last_conversation
+from knowledge.profile import recall
+
+
+class Brain:
+
+    def think(self, user):
+
+        intent = detect_intent(user)
+
+user = user.lower()
+
+        # -----------------------------
+        # Nova Identity
+        # -----------------------------
+        if intent == "identity": or "who are you" in user:
+            return "My name is NOVA. I am your personal AI assistant."
+
+        if intent == "owner":
+            owner = recall("owner")
+
+            if owner:
+                return f"I was created by {owner}."
+            else:
+                return "I was created by my developer."
+
+        # -----------------------------
+        # Favourite Language
+        # -----------------------------
+        if intent == "favorite_language":
+
+            language = recall("favorite_language")
+
+            if language:
+                return f"Your favourite language is {language}."
+
+            return "You haven't told me your favourite language."
+
+        # -----------------------------
+        # Last Conversation Memory
+        # -----------------------------
+        history = last_conversation()
+
+        if "what language did i just mention" in user:
+
+            for item in reversed(history):
+
+                text = item["user"].lower()
+
+                if "language is" in text:
+
+                    language = text.split("language is")[-1].strip()
+
+                    return f"You just mentioned {language.title()}."
+
+            return "You haven't mentioned any language."
+
+        return "I am still learning."

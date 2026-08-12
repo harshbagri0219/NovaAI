@@ -1,0 +1,34 @@
+from memory.manager import MemoryManager
+
+memory = MemoryManager()
+
+
+def learn(user):
+
+    text = user.lower()
+
+    if text.startswith("my favourite language is "):
+
+        language = user[len("my favourite language is "):].strip()
+
+        memory.set("preferences", "language", language)
+
+        return f"I'll remember your favourite language is {language}."
+
+    if text.startswith("my favourite food is "):
+
+        food = user[len("my favourite food is "):].strip()
+
+        memory.set("preferences", "food", food)
+
+        return f"I'll remember your favourite food is {food}."
+
+    if text.startswith("i live in "):
+
+        city = user[len("i live in "):].strip()
+
+        memory.set("profile", "city", city)
+
+        return f"I'll remember that you live in {city}."
+
+    return None

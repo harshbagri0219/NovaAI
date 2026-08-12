@@ -1,26 +1,41 @@
-from system.device import get_battery
-from system.time_utils import current_time
+from ai.planner import choose_action
+from core.plugin_manager import load_plugins
+from plugins import memory as memory_plugin
+from knowledge.profile import recall
+
+
+plugins = load_plugins()
 
 
 def handle_command(command, memory):
-    command = command.lower()
 
-    if command == "battery":
-        battery = get_battery()
+    intent = choose_action(command)
 
-        if "error" in battery:
-            return battery["error"]
+    if intent == "owner":
+        owner = recall("owner")
 
-        return f"Battery is {battery['percentage']} percent."
-
-    elif command == "time":
-        return current_time()
-
-    elif command == "what is my name":
-
-        if "owner" in memory:
-            return f"Your name is {memory['owner']}."
+        if owner:
+            return f"Your name is {owner}."
 
         return "I don't know your name yet."
+
+    if intent == "favorite_language":
+        language = recall("favorite_language")
+
+        if language:
+            return f"Your favourite language is {language}."
+
+        return "I don't know your favourite language yet."
+
+    if intent == "favorite_food":
+        food = recall("favorite_food")
+
+        if food:
+            return f"Your favourite food is {food}."
+
+        return "I don't know your favourite food yet."
+
+    if intent in plugins:
+        return plugins[intent]()
 
     return None
