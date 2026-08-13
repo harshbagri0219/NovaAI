@@ -16,6 +16,11 @@ logs/
 secrets/
 credentials/
 
+# Backup files
+*.backup
+*.save
+*.save.*
+
 # Local databases / personal data
 database/memory.json
 

@@ -7,13 +7,17 @@ from startup import startup
 from utils.logger import write_log
 from monitor.system_monitor import check_system
 from ai.decision import decide
+from ai.task_coordinator import coordinate
+from ai.result_analyzer import analyze_results
 from brain.context_manager import ContextManager
+
 
 brain = Brain()
 context = ContextManager()
 memory = load_memory()
 
 startup()
+
 
 while True:
 
@@ -25,6 +29,7 @@ while True:
 
     user = listen()
 
+    # ---------- Exit ----------
     if user.lower() == "exit":
 
         speak("Goodbye!")
@@ -35,6 +40,7 @@ while True:
 
         break
 
+    # ---------- Remember Owner ----------
     elif user.lower().startswith("remember my name is "):
 
         name = user[len("remember my name is "):].strip()
@@ -65,6 +71,23 @@ while True:
             remember(user, response)
 
             continue
+
+        # ---------- Task Coordinator ----------
+        task_result = coordinate(user, memory)
+
+        if task_result:
+
+            response = analyze_results(task_result["results"])
+
+            if response:
+
+                speak(response)
+
+                write_log(user, response)
+
+                remember(user, response)
+
+                continue
 
         # ---------- AI Brain ----------
         reply = brain.think(user)

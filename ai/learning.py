@@ -62,5 +62,29 @@ def learn(user):
 
             return f"I'll remember that you also like {value.title()}."
 
+    # Multiple favourite languages
+    if "i like " in text and " and " in text:
+
+        value = text.split("i like ", 1)[1].strip()
+
+        parts = [item.strip() for item in value.split(" and ")]
+
+        languages = recall("languages")
+
+        if not isinstance(languages, list):
+            languages = []
+
+        for language in parts:
+
+            if language and language.title() not in languages:
+                languages.append(language.title())
+
+        remember("languages", languages)
+
+        if len(parts) == 2:
+            return f"I'll remember that you like {parts[0].title()} and {parts[1].title()}."
+
+        return "I'll remember those languages."
+
     # No new information detected
     return None

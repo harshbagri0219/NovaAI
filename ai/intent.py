@@ -1,5 +1,8 @@
+import re
+
+
 def detect_intent(user):
-    text = user.lower()
+    text = user.lower().strip()
 
     intents = {
         "battery": [
@@ -51,24 +54,33 @@ def detect_intent(user):
             "what's my favorite language"
         ],
 
-        "languages": [
-            "what languages do i like",
-            "which languages do i like",
-            "what programming languages do i like",
-            "which programming languages do i like"
-        ],
-
         "favorite_food": [
             "what is my favourite food",
             "what's my favourite food",
             "what is my favorite food",
             "what's my favorite food"
+        ],
+
+        "languages": [
+            "what languages do i like",
+            "which languages do i like",
+            "what programming languages do i like",
+            "which programming languages do i like"
         ]
     }
 
     for intent, keywords in intents.items():
+
         for keyword in keywords:
-            if keyword in text:
-                return intent
+
+            # Multi-word phrases
+            if " " in keyword:
+                if keyword in text:
+                    return intent
+
+            # Single words — require a complete word
+            else:
+                if re.search(r"\b" + re.escape(keyword) + r"\b", text):
+                    return intent
 
     return None
