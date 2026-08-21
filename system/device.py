@@ -1,9 +1,16 @@
-import subprocess
 import json
+import os
 import shutil
+import subprocess
 
 
-def get_battery():
+def battery():
+    """
+    Get battery information.
+
+    Works on Android/Termux.
+    Returns an error dictionary when unavailable.
+    """
     try:
         output = subprocess.check_output(
             ["termux-battery-status"],
@@ -15,7 +22,20 @@ def get_battery():
         return {"error": str(e)}
 
 
+def get_battery():
+    """
+    Backward-compatible alias for battery().
+    """
+    return battery()
+
+
 def get_device_info():
+    """
+    Get Android device information.
+
+    Works on Android/Termux.
+    Returns an error dictionary when unavailable.
+    """
     try:
         model = subprocess.check_output(
             ["getprop", "ro.product.model"],
@@ -43,7 +63,19 @@ def get_device_info():
 
 
 def get_storage():
-    total, used, free = shutil.disk_usage("/data/data/com.termux/files/home")
+    """
+    Get storage information.
+
+    Uses the Termux home directory on Android.
+    Uses the current user's home directory on Windows/Linux.
+    """
+
+    if os.path.exists("/data/data/com.termux/files/home"):
+        path = "/data/data/com.termux/files/home"
+    else:
+        path = os.path.expanduser("~")
+
+    total, used, free = shutil.disk_usage(path)
 
     return {
         "total": round(total / (1024 ** 3), 2),

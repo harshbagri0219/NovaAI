@@ -1,6 +1,13 @@
+import pytest
 from system.device import battery
-from voice.speak import speak
 
-info = battery()
 
-speak(f"Battery is {info['percentage']} percent.")
+def test_battery():
+    info = battery()
+
+    if "error" in info:
+        pytest.skip("Battery API unavailable on this system")
+
+    assert "percentage" in info
+    assert isinstance(info["percentage"], (int, float))
+    assert 0 <= info["percentage"] <= 100
