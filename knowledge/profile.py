@@ -1,119 +1,77 @@
 from memory.memory import load_memory, save_memory
-
-# Compatibility imports for structured memory
-from memory.models import LEGACY_TO_CATEGORICAL, CATEGORICAL_TO_LEGACY
+from memory.models import LEGACY_TO_CATEGORICAL
 
 
 def _get_data_dict(memory_data):
-    """Extract the data dict from memory structure.
+    """Return the canonical v0.2 data section."""
 
-    Works with both v0.1 flat format and v0.2 structured format.
-
-    v0.1 flat: memory_data = {"owner": "Hanzo", ...}
-    v0.2 structured: memory_data = {"schema_version": "0.2.0", "data": {"profile": {...}, ...}}
-
-    Args:
-        memory_data: output of load_memory()
-
-    Returns:
-        dict containing the actual key-value data (without schema_version wrapper)
-    """
     if not isinstance(memory_data, dict):
         return {}
 
-    # v0.2 structured format - has schema_version and data wrapper
-    if "schema_version" in memory_data and "data" in memory_data:
+    if (
+        memory_data.get("schema_version") == "0.2.0"
+        and isinstance(memory_data.get("data"), dict)
+    ):
         return memory_data["data"]
 
-    # v0.1 flat format - the memory_data itself is the data dict
     return memory_data
 
 
 def remember(key, value):
-    """Remember a key-value pair in memory.
+    """Store a memory value using the canonical structured format."""
 
-    Preserves existing API: remember(key, value) continues to work exactly as before.
-    Internal implementation now uses structured memory beneath the flat API.
-
-    Args:
-        key: memory key (e.g., "owner", "languages", "favorite_language")
-        value: value to store
-    """
     memory = load_memory()
     data = _get_data_dict(memory)
 
-    # Store in flat key for backward compatibility
-    data[key] = value
+    # Known legacy keys go into their canonical category.
+    if key in LEGACY_TO_CATEGORICAL:
+        category, subkey = LEGACY_TO_CATEGORICAL[key]
 
-    # Also store in structured section if applicable
-    _store_in_structured(key, value)
+        if category not in data or not isinstance(data[category], dict):
+            data[category] = {}
+
+        data[category][subkey] = value
+
+    # Unknown values go into the profile category.
+    else:
+        if "profile" not in data or not isinstance(data["profile"], dict):
+            data["profile"] = {}
+
+        data["profile"][key] = value
 
     save_memory(memory)
 
 
-def _store_in_structured(key, value):
-    """Store key-value in structured memory categories.
-
-    Internal implementation detail. Maps legacy keys to structured categories.
-
-    Args:
-        key: memory key
-        value: value to store
-    """
-    # Map legacy keys to structured categories
-    if key in LEGACY_TO_CATEGORICAL:
-        category, subkey = LEGACY_TO_CATEGORICAL[key]
-        # Ensure structured data exists
-        memory = load_memory()
-        if "data" not in memory:
-            memory["data"] = {}
-        if category not in memory["data"]:
-            memory["data"][category] = {}
-        memory["data"][category][subkey] = value
-        save_memory(memory)
-    # For unknown keys, also store in profile structured section
-    elif key not in ("owner", "location", "favorite_language", "favorite_food", "languages"):
-        # Store generically in profile
-        memory = load_memory()
-        data = _get_data_dict(memory)
-        if "profile" not in data:
-            data["profile"] = {}
-        if key not in data["profile"]:
-            data["profile"][key] = value
-        save_memory(memory)
-
-
 def recall(key):
-    """ Recall a value from memory.
+    """Retrieve a memory value."""
 
-    Preserves existing API: recall(key) continues to work exactly as before.
-
-    Args:
-        key: memory key to look up
-
-    Returns:
-        stored value, or None if not found
-    """
     memory = load_memory()
     data = _get_data_dict(memory)
 
-    # First try flat key
+    # Known legacy keys.
+    if key in LEGACY_TO_CATEGORICAL:
+        category, subkey = LEGACY_TO_CATEGORICAL[key]
+
+        category_data = data.get(category, {})
+
+        if isinstance(category_data, dict):
+            if subkey in category_data:
+                return category_data[subkey]
+
+    # Direct top-level compatibility lookup.
     if key in data:
         return data[key]
 
-    # Try structured categories
-    if key in CATEGORICAL_TO_LEGACY:
-        # Find which category contains this key
-        for category, subkey in CATEGORICAL_TO_LEGACY.items():
-            memory = load_memory()
-            if "data" in memory and category in memory["data"]:
-                if subkey in memory["data"][category]:
-                    return memory["data"][category][subkey]
+    # Profile fallback.
+    profile = data.get("profile", {})
 
-    # Fallback: search all structured categories
-    memory = load_memory()
-    if "data" in memory:
-        for category, category_data in memory["data"].items():
+    if isinstance(profile, dict):
+        if key in profile:
+            return profile[key]
+
+    # Final compatibility search through structured categories.
+    for category_data in data.values():
+        if isinstance(category_data, dict):
             if key in category_data:
                 return category_data[key]
 
@@ -121,191 +79,39 @@ def recall(key):
 
 
 def forget(key):
-    """ Forget a key from memory.
+    """Remove a memory value."""
 
-    Preserves existing API: forget(key) continues to work exactly as before.
-
-    Args:
-        key: memory key to remove
-
-    Returns:
-        True if key was found and removed, False otherwise
-    """
     memory = load_memory()
     data = _get_data_dict(memory)
 
-    # Remove from flat key
-    if key in data:
-        del data[key]
-        save_memory(memory)
-        return True
-
-    # Remove from structured categories
-    memory = load_memory()
-    if "data" in memory:
-        for category in memory["data"]:
-            if key in memory["data"][category]:
-                del memory["data"][category][key]
-                save_memory(memory)
-                return True
-
-    return False
-from memory.memory import load_memory, save_memory
-
-# Compatibility imports for structured memory
-from memory.models import LEGACY_TO_CATEGORICAL, CATEGORICAL_TO_LEGACY
-
-
-def _get_data_dict(memory_data):
-    """Extract the data dict from memory structure.
-
-    Works with both v0.1 flat format and v0.2 structured format.
-
-    v0.1 flat: memory_data = {"owner": "Hanzo", ...}
-    v0.2 structured: memory_data = {"schema_version": "0.2.0", "data": {"profile": {...}, ...}}
-
-    Args:
-        memory_data: output of load_memory()
-
-    Returns:
-        dict containing the actual key-value data (without schema_version wrapper)
-    """
-    if not isinstance(memory_data, dict):
-        return {}
-
-    # v0.2 structured format - has schema_version and data wrapper
-    if "schema_version" in memory_data and "data" in memory_data:
-        return memory_data["data"]
-
-    # v0.1 flat format - the memory_data itself is the data dict
-    return memory_data
-
-
-def remember(key, value):
-    """Remember a key-value pair in memory.
-
-    Preserves existing API: remember(key, value) continues to work exactly as before.
-    Internal implementation now uses structured memory beneath the flat API.
-
-    Args:
-        key: memory key (e.g., "owner", "languages", "favorite_language")
-        value: value to store
-    """
-    memory = load_memory()
-    data = _get_data_dict(memory)
-
-    # Store in flat key for backward compatibility
-    data[key] = value
-
-    # Also store in structured section if applicable
-    _store_in_structured(key, value)
-
-    save_memory(memory)
-
-
-def _store_in_structured(key, value):
-    """Store key-value in structured memory categories.
-
-    Internal implementation detail. Maps legacy keys to structured categories.
-
-    Args:
-        key: memory key
-        value: value to store
-    """
-    # Map legacy keys to structured categories
+    # Known legacy keys.
     if key in LEGACY_TO_CATEGORICAL:
         category, subkey = LEGACY_TO_CATEGORICAL[key]
-        # Ensure structured data exists
-        memory = load_memory()
-        if "data" not in memory:
-            memory["data"] = {}
-        if category not in memory["data"]:
-            memory["data"][category] = {}
-        memory["data"][category][subkey] = value
-        save_memory(memory)
-    # For unknown keys, also store in profile structured section
-    elif key not in ("owner", "location", "favorite_language", "favorite_food", "languages"):
-        # Store generically in profile
-        memory = load_memory()
-        data = _get_data_dict(memory)
-        if "profile" not in data:
-            data["profile"] = {}
-        if key not in data["profile"]:
-            data["profile"][key] = value
-        save_memory(memory)
 
+        category_data = data.get(category)
 
-def recall(key):
-    """ Recall a value from memory.
+        if isinstance(category_data, dict):
+            if subkey in category_data:
+                del category_data[subkey]
+                save_memory(memory)
+                return True
 
-    Preserves existing API: recall(key) continues to work exactly as before.
+    # Profile fallback.
+    profile = data.get("profile")
 
-    Args:
-        key: memory key to look up
+    if isinstance(profile, dict):
+        if key in profile:
+            del profile[key]
+            save_memory(memory)
+            return True
 
-    Returns:
-        stored value, or None if not found
-    """
-    memory = load_memory()
-    data = _get_data_dict(memory)
-
-    # First try flat key
-    if key in data:
-        return data[key]
-
-    # Try structured categories
-    if key in CATEGORICAL_TO_LEGACY:
-        # Find which category contains this key
-        for category, subkey in CATEGORICAL_TO_LEGACY.items():
-            memory = load_memory()
-            if "data" in memory and category in memory["data"]:
-                if subkey in memory["data"][category]:
-                    return memory["data"][category][subkey]
-
-    # Fallback: search all structured categories
-    memory = load_memory()
-    if "data" in memory:
-        for category, category_data in memory["data"].items():
-            if key in category_data:
-                return category_data[key]
-
-    return None
-
-
-def forget(key):
-    """ Forget a key from memory.
-
-    Preserves existing API: forget(key) continues to work exactly as before.
-
-    Args:
-        key: memory key to remove
-
-    Returns:
-        True if key was found and removed, False otherwise
-    """
-    memory = load_memory()
-    data = _get_data_dict(memory)
-
-    # Remove from flat key
+    # Direct top-level fallback.
     if key in data:
         del data[key]
         save_memory(memory)
         return True
 
-    # Remove from structured categories
-    memory = load_memory()
-    if "data" in memory:
-        for category in memory["data"]:
-            if key in memory["data"][category]:
-                del memory["data"][category][key]
-                save_memory(memory)
-                return True
-
     return False
-
-
-    # ---------------------------------
-# Text Normalization
 
 
 # ---------------------------------
@@ -313,18 +119,13 @@ def forget(key):
 # ---------------------------------
 
 def normalize_text(value):
-    """
-    Clean a text value by removing
-    unnecessary whitespace and punctuation.
-    """
+    """Clean a text value by removing unnecessary whitespace and punctuation."""
 
     if not isinstance(value, str):
         return value
 
     value = value.strip()
-
     value = value.rstrip(".,!?;:")
-
     value = " ".join(value.split())
 
     return value
@@ -335,9 +136,7 @@ def normalize_text(value):
 # ---------------------------------
 
 def normalize_language(language):
-    """
-    Normalize a programming language name.
-    """
+    """Normalize a programming language name."""
 
     language = normalize_text(language)
 
@@ -373,10 +172,7 @@ def normalize_language(language):
 # ---------------------------------
 
 def remember_language(language):
-    """
-    Add a programming language to the user's
-    language list without creating duplicates.
-    """
+    """Add a programming language without creating duplicates."""
 
     language = normalize_language(language)
 
@@ -391,7 +187,6 @@ def remember_language(language):
     normalized_languages = []
 
     for item in languages:
-
         item = normalize_language(item)
 
         if item and item not in normalized_languages:
@@ -406,9 +201,7 @@ def remember_language(language):
 
 
 def recall_languages():
-    """
-    Return a clean list of languages.
-    """
+    """Return the user's normalized programming language list."""
 
     languages = recall("languages")
 
@@ -418,7 +211,6 @@ def recall_languages():
     cleaned = []
 
     for language in languages:
-
         language = normalize_language(language)
 
         if language and language not in cleaned:

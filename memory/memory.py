@@ -3,170 +3,184 @@ import os
 import shutil
 from datetime import datetime
 
-from memory.models import SCHEMA_VERSION, LEGACY_TO_CATEGORICAL, CATEGORICAL_TO_LEGACY, DEFAULTS
+from memory.models import (
+    SCHEMA_VERSION,
+    LEGACY_TO_CATEGORICAL,
+    DEFAULTS,
+)
 
 FILE = "database/memory.json"
 
 
 def backup_memory():
-    """Create a backup of the existing memory file before modification.
-
-    - preserves the original file
-    - uses a timestamp or unique suffix
-    - never silently overwrite an existing backup
-    """
+    """Create a unique backup of the existing memory file."""
     if not os.path.exists(FILE):
         return None
 
-    # Generate unique backup suffix with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_file = FILE + ".backup_" + timestamp
 
-    # Copy the file with unique name - never silently overwrite
     try:
         shutil.copy2(FILE, backup_file)
         return backup_file
-    except Exception:
+    except (OSError, shutil.Error):
         return None
 
 
 def detect_schema_version(data):
-    """Detect the schema version of the memory data.
-
-    Returns:
-        "0.2.0" if structured format with schema_version field
-        "0.1.0" if legacy flat structure (no schema_version field)
-        None if data is empty or invalid
-    """
-    if data is None:
+    """Detect the memory schema version."""
+    if data is None or not isinstance(data, dict):
         return None
 
-    if not isinstance(data, dict):
-        return None
-
-    # Check for structured schema version
-    if SCHEMA_VERSION in data:
+    if data.get("schema_version") == SCHEMA_VERSION:
         return SCHEMA_VERSION
 
-    # Legacy flat structure - no schema_version field
     return "0.1.0"
 
 
 def load_memory():
-    """Load memory from JSON file with schema detection and error handling.
+    """Load memory using the canonical v0.2 structure."""
 
-    - Detects schema version (0.1.0 flat or 0.2.0 structured)
-    - Handles missing files gracefully
-    - Handles malformed JSON gracefully
-    - Returns data compatible with both old and new code
-    """
     if not os.path.exists(FILE):
-        # Return default structured data for new installations
-        return {"schema_version": SCHEMA_VERSION, "data": DEFAULTS.copy()}
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "data": _default_data(),
+        }
 
     try:
         with open(FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        # Malformed JSON - return default structured data
-        # Do not overwrite the file here; let the caller decide
-        return {"schema_version": "0.1.0", "data": {}, "._malformed": True}
+
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "data": _default_data(),
+        }
 
     schema_version = detect_schema_version(data)
 
     if schema_version == SCHEMA_VERSION:
-        # Already v0.2 structured format
-        return data
 
-    # Legacy v0.1 flat structure - normalize to structured format
-    normalized = _migrate_legacy_to_structured(data)
-    normalized["schema_version"] = SCHEMA_VERSION
-    return normalized
+        # Already canonical v0.2.
+        # Do not migrate or transform it again.
 
+        if isinstance(data.get("data"), dict):
+            return data
 
-def _migrate_legacy_to_structured(legacy_data):
-    """Convert legacy v0.1 flat memory to v0.2 structured format.
-
-    Preserves all existing data without deletion.
-    Maps flat keys to structured categories.
-
-    Args:
-        legacy_data: dict from v0.1 flat memory.json
-
-    Returns:
-        dict with structured format
-    """
-    if not isinstance(legacy_data, dict):
+        # Repair malformed v0.2 wrapper without
+        # interpreting its contents as legacy data.
         return {
-            "profile": {},
-            "preferences": {},
-            "facts": {},
-            "conversation": {"recent": [], "summaries": []},
-            "tasks": {"active": [], "completed": []},
-            "system": {},
+            "schema_version": SCHEMA_VERSION,
+            "data": _default_data(),
         }
 
-    structured = {
+    # Legacy v0.1 data.
+    normalized = _migrate_legacy_to_structured(data)
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "data": normalized,
+    }
+
+
+def _default_data():
+    """Return a fresh copy of the default memory structure."""
+
+    return {
         "profile": {},
         "preferences": {},
         "facts": {},
-        "conversation": {"recent": [], "summaries": []},
-        "tasks": {"active": [], "completed": []},
+        "conversation": {
+            "recent": [],
+            "summaries": [],
+        },
+        "tasks": {
+            "active": [],
+            "completed": [],
+        },
         "system": {},
     }
 
-    # Map legacy flat keys to structured categories
+
+def _migrate_legacy_to_structured(legacy_data):
+    """Convert legacy v0.1 flat memory into canonical v0.2 data.
+
+    This function only migrates genuinely flat legacy data.
+    It never recursively wraps already-structured data.
+    """
+
+    structured = _default_data()
+
+    if not isinstance(legacy_data, dict):
+        return structured
+
     for key, value in legacy_data.items():
+
+        # Ignore schema metadata.
+        if key == "schema_version":
+            continue
+
+        # Known legacy keys.
         if key in LEGACY_TO_CATEGORICAL:
             category, subkey = LEGACY_TO_CATEGORICAL[key]
-            structured[category][subkey] = value
-        else:
-            # Unknown key - store in profile as a generic entry
-            if "unknown_" + key not in structured["profile"]:
-                structured["profile"]["unknown_" + key] = value
 
-    # Preserve any keys that weren't explicitly mapped
-    for key in legacy_data:
-        if key not in LEGACY_TO_CATEGORICAL and key not in structured["profile"]:
-            structured["profile"][key] = legacy_data[key]
+            if category not in structured:
+                structured[category] = {}
+
+            if isinstance(structured[category], dict):
+                structured[category][subkey] = value
+
+            continue
+
+        # Preserve unknown legacy values in profile.
+        # Do NOT prepend "unknown_" repeatedly.
+        if key not in structured["profile"]:
+            structured["profile"][key] = value
 
     return structured
 
 
 def save_memory(data):
-    """Save memory data to JSON file with backup and error handling.
+    """Save canonical memory data safely.
 
-    - Creates backup of existing file before overwrite
-    - Ensures valid JSON output
-    - Handles malformed data gracefully
-    - Maintains offline-first operation
-
-    Args:
-        data: dict to save to memory.json
-
-    Returns:
-        True if save successful, False otherwise
+    Creates a backup before replacing the existing memory file.
     """
-    # Ensure data has schema_version
+
     if not isinstance(data, dict):
         return False
 
-    if "schema_version" not in data:
-        data["schema_version"] = SCHEMA_VERSION
+    # Ensure canonical schema metadata.
+    data["schema_version"] = SCHEMA_VERSION
 
-    # Create backup of existing file before modifying
+    # Ensure canonical data wrapper.
+    if not isinstance(data.get("data"), dict):
+        data["data"] = _default_data()
+
+    # Create database directory before backup/save.
+    os.makedirs(os.path.dirname(FILE), exist_ok=True)
+
+    # IMPORTANT:
+    # backup_path must be created before attempting to save.
     backup_path = backup_memory()
 
     try:
         with open(FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
+            json.dump(
+                data,
+                f,
+                indent=4,
+                ensure_ascii=False,
+            )
+
         return True
-    except (OSError, TypeError) as e:
-        # Attempt to restore from backup on failure
+
+    except (OSError, TypeError, ValueError):
+
+        # Restore previous database if saving failed.
         if backup_path and os.path.exists(backup_path):
             try:
                 shutil.copy2(backup_path, FILE)
-            except Exception:
+            except (OSError, shutil.Error):
                 pass
+
         return False
-      
