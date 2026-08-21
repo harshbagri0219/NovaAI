@@ -1,6 +1,5 @@
 from ai.planner import choose_action
 from core.plugin_manager import load_plugins
-from plugins import memory as memory_plugin
 from knowledge.profile import recall
 
 
@@ -15,9 +14,9 @@ def handle_command(command, memory):
         owner = recall("owner")
 
         if owner:
-            return f"Your name is {owner}."
+            return f"I was created by {owner}."
 
-        return "I don't know your name yet."
+        return "I don't know who created me yet."
 
     if intent == "favorite_language":
         language = recall("favorite_language")

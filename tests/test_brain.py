@@ -14,6 +14,7 @@ def test_brain_owner():
     result = brain.think("Who created you?")
 
     assert isinstance(result, str)
+    assert result
 
 
 def test_brain_favorite_language():
@@ -21,6 +22,7 @@ def test_brain_favorite_language():
     result = brain.think("What is my favorite language?")
 
     assert isinstance(result, str)
+    assert result
 
 
 def test_brain_favorite_food():
@@ -28,6 +30,7 @@ def test_brain_favorite_food():
     result = brain.think("What is my favorite food?")
 
     assert isinstance(result, str)
+    assert result
 
 
 def test_brain_unknown():
@@ -35,3 +38,20 @@ def test_brain_unknown():
     result = brain.think("Tell me something completely random")
 
     assert isinstance(result, str)
+    assert result
+
+
+def test_brain_language_memory_question():
+    brain = Brain()
+    result = brain.think("What language did I just mention?")
+
+    assert isinstance(result, str)
+    assert result
+
+
+def test_brain_context_reference():
+    brain = Brain()
+    result = brain.think("Which one?")
+
+    assert isinstance(result, str)
+    assert result
