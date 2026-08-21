@@ -13,7 +13,10 @@ class Brain:
         self.topic_tracker = TopicTracker()
 
     def think(self, user):
-        
+
+        # -----------------------------
+        # Track conversation topic
+        # -----------------------------
         topic = extract_topic(user)
 
         if topic:
@@ -29,7 +32,7 @@ class Brain:
         # Detect Intent
         # -----------------------------
         intent = detect_intent(user)
-        user = user.lower()
+        user = user.lower().strip()
 
         # -----------------------------
         # NOVA Identity
@@ -111,6 +114,67 @@ class Brain:
             return "You haven't mentioned any language."
 
         # -----------------------------
+        # Topic-aware references
+        #
+        # IMPORTANT:
+        # Handle references BEFORE the
+        # reasoning engine so that the
+        # reasoning fallback cannot swallow
+        # the reference request.
+        # -----------------------------
+        current_topic = self.topic_tracker.current()
+        previous_topic = self.topic_tracker.previous()
+
+        if reference:
+
+            reference_type = reference["reference"]
+
+            if reference_type == "it":
+                if current_topic:
+                    return (
+                        f"You're referring to {current_topic}. "
+                        f"What would you like to know about {current_topic}?"
+                    )
+
+                return (
+                    f"I understand that you're referring to: "
+                    f"{reference['previous_message']}."
+                )
+
+            if reference_type == "that":
+                if current_topic:
+                    return (
+                        f"You're referring to {current_topic}. "
+                        f"What would you like to know about {current_topic}?"
+                    )
+
+                return (
+                    f"I understand that you're referring to: "
+                    f"{reference['previous_message']}."
+                )
+
+            if reference_type == "which one":
+
+                if current_topic and previous_topic:
+                    return (
+                        f"You're currently talking about {current_topic}. "
+                        f"Previously, we were discussing {previous_topic}. "
+                        f"Which one would you like to compare?"
+                    )
+
+                if current_topic:
+                    return (
+                        f"You're currently talking about {current_topic}. "
+                        f"What aspect of {current_topic} do you want to compare?"
+                    )
+
+                return (
+                    f"You were previously talking about: "
+                    f"{reference['previous_message']}. "
+                    f"Tell me what aspect you want to compare."
+                )
+
+        # -----------------------------
         # Reasoning Engine
         # -----------------------------
         reasoning_response = reason(user)
@@ -119,22 +183,26 @@ class Brain:
             return reasoning_response
 
         # -----------------------------
-        # Context-aware Fallback
+        # Topic fallback
         # -----------------------------
-        if reference:
+        if current_topic:
 
-            previous = reference["previous_message"]
-
-            if reference["reference"] == "which one":
+            if "speed" in user:
                 return (
-                    f"You were previously talking about: {previous}. "
-                    "Tell me what aspect you want to compare."
+                    f"{current_topic} can be discussed in terms of "
+                    f"execution speed, performance, and efficiency."
                 )
 
-            if reference["reference"] in ("it", "that"):
+            if "difficult" in user or "hard" in user:
                 return (
-                    f"I understand that you're referring to: {previous}."
+                    f"{current_topic} can be easy or difficult depending "
+                    f"on your experience and what you are trying to do."
                 )
+
+            return (
+                f"We are currently discussing {current_topic}. "
+                f"What would you like to know about it?"
+            )
 
         # -----------------------------
         # Default Response
