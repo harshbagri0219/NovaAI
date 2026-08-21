@@ -1,3 +1,4 @@
+from core.router import handle_command
 from ai.intent import detect_intent
 from brain.context import last_conversation
 from brain.context_builder import build_context
@@ -150,4 +151,9 @@ class Brain:
         # -----------------------------
         # Default Response
         # -----------------------------
+                routed_response = handle_command(user, {})
+
+        if routed_response:
+            return routed_response
+
         return "I am still learning."
