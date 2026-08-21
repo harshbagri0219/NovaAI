@@ -3,7 +3,6 @@ from brain.context import last_conversation
 from brain.context_builder import build_context
 from brain.context_resolver import resolve_reference
 from brain.reasoning import reason
-from core.router import handle_command
 from knowledge.profile import recall
 
 
@@ -24,7 +23,7 @@ class Brain:
         user = user.lower()
 
         # -----------------------------
-        # Nova Identity
+        # NOVA Identity
         # -----------------------------
         if intent == "identity":
             return "My name is NOVA. I am your personal AI assistant."
@@ -127,14 +126,6 @@ class Brain:
                 return (
                     f"I understand that you're referring to: {previous}."
                 )
-
-        # -----------------------------
-        # Plugin Router Fallback
-        # -----------------------------
-        routed_response = handle_command(user, {})
-
-        if routed_response:
-            return routed_response
 
         # -----------------------------
         # Default Response
