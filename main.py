@@ -1,4 +1,3 @@
-from brain.brain import Brain
 from brain.context import remember
 from memory.memory import load_memory, save_memory
 from voice.speak import speak
@@ -7,12 +6,9 @@ from startup import startup
 from utils.logger import write_log
 from monitor.system_monitor import check_system
 from ai.decision import decide
-from ai.task_coordinator import coordinate
-from ai.result_analyzer import analyze_results
 from brain.context_manager import ContextManager
 
 
-brain = Brain()
 context = ContextManager()
 memory = load_memory()
 
@@ -21,12 +17,13 @@ startup()
 
 while True:
 
-    # Check phone status before waiting for a command
+    # ---------- System Monitoring ----------
     alerts = check_system()
 
     for alert in alerts:
         speak(alert)
 
+    # ---------- Listen ----------
     user = listen()
 
     # ---------- Exit ----------
@@ -57,43 +54,16 @@ while True:
 
         remember(user, response)
 
+    # ---------- Central Decision Engine ----------
     else:
 
-        # ---------- Decision Engine ----------
         response = decide(user, memory)
 
-        if response:
+        if not response:
+            response = "I am still learning."
 
-            speak(response)
+        speak(response)
 
-            write_log(user, response)
+        write_log(user, response)
 
-            remember(user, response)
-
-            continue
-
-        # ---------- Task Coordinator ----------
-        task_result = coordinate(user, memory)
-
-        if task_result:
-
-            response = analyze_results(task_result["results"])
-
-            if response:
-
-                speak(response)
-
-                write_log(user, response)
-
-                remember(user, response)
-
-                continue
-
-        # ---------- AI Brain ----------
-        reply = brain.think(user)
-
-        speak(reply)
-
-        write_log(user, reply)
-
-        remember(user, reply)
+        remember(user, response)
