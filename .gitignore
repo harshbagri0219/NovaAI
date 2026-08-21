@@ -5,6 +5,13 @@ __pycache__/
 venv/
 env/
 
+# NOVA runtime memory
+database/*.json
+database/*.json.backup_*
+
+# Runtime/debug files
+debug.txt
+
 # Logs
 *.log
 logs/
@@ -20,9 +27,6 @@ credentials/
 *.backup
 *.save
 *.save.*
-
-# Local databases / personal data
-database/memory.json
 
 # Android / build files
 .gradle/
