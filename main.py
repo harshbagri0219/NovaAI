@@ -6,10 +6,8 @@ from startup import startup
 from utils.logger import write_log
 from monitor.system_monitor import check_system
 from ai.decision import decide
-from brain.context_manager import ContextManager
 
 
-context = ContextManager()
 memory = load_memory()
 
 startup()
