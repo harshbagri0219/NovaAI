@@ -3,12 +3,21 @@ from brain.context import last_conversation
 from brain.context_builder import build_context
 from brain.context_resolver import resolve_reference
 from brain.reasoning import reason
+from brain.topic_tracker import TopicTracker, extract_topic
 from knowledge.profile import recall
 
 
 class Brain:
 
+    def __init__(self):
+        self.topic_tracker = TopicTracker()
+
     def think(self, user):
+        
+        topic = extract_topic(user)
+
+        if topic:
+            self.topic_tracker.add(topic)
 
         # -----------------------------
         # Build Context

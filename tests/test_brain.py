@@ -8,6 +8,23 @@ def test_brain_identity():
     assert isinstance(result, str)
     assert "NOVA" in result
 
+def test_brain_tracks_topic():
+    brain = Brain()
+
+    brain.think("Tell me about Python")
+
+    assert brain.topic_tracker.current() == "Python"
+
+
+def test_brain_tracks_multiple_topics():
+    brain = Brain()
+
+    brain.think("Tell me about Python")
+    brain.think("What is Java?")
+
+    assert brain.topic_tracker.current() == "Java"
+    assert brain.topic_tracker.previous() == "Python"    
+
 
 def test_brain_owner():
     brain = Brain()
