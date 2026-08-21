@@ -1,0 +1,24 @@
+{
+    "schema_version": "0.2.0",
+    "data": {
+        "profile": {
+            "owner": "Hanzo",
+            "favorite_language": "Python",
+            "languages": [
+                "Python",
+                "Java"
+            ]
+        },
+        "preferences": {},
+        "facts": {},
+        "conversation": {
+            "recent": [],
+            "summaries": []
+        },
+        "tasks": {
+            "active": [],
+            "completed": []
+        },
+        "system": {}
+    }
+}

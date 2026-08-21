@@ -18,12 +18,12 @@ def _get_data_dict(memory_data):
 
 
 def remember(key, value):
-    """Store a memory value using the canonical structured format."""
+    """Store a memory value using one load and one save operation."""
 
     memory = load_memory()
     data = _get_data_dict(memory)
 
-    # Known legacy keys go into their canonical category.
+    # Known legacy keys → canonical category.
     if key in LEGACY_TO_CATEGORICAL:
         category, subkey = LEGACY_TO_CATEGORICAL[key]
 
@@ -32,18 +32,22 @@ def remember(key, value):
 
         data[category][subkey] = value
 
-    # Unknown values go into the profile category.
+    # Compatibility list.
+    elif key == "languages":
+        data["languages"] = value
+
+    # Unknown values → profile.
     else:
         if "profile" not in data or not isinstance(data["profile"], dict):
             data["profile"] = {}
 
         data["profile"][key] = value
 
-    save_memory(memory)
+    return save_memory(memory)
 
 
 def recall(key):
-    """Retrieve a memory value."""
+    """Retrieve a memory value using one load operation."""
 
     memory = load_memory()
     data = _get_data_dict(memory)
@@ -58,7 +62,14 @@ def recall(key):
             if subkey in category_data:
                 return category_data[subkey]
 
-    # Direct top-level compatibility lookup.
+    # Compatibility languages list.
+    if key == "languages":
+        languages = data.get("languages")
+
+        if isinstance(languages, list):
+            return languages
+
+    # Direct top-level lookup.
     if key in data:
         return data[key]
 
@@ -69,8 +80,9 @@ def recall(key):
         if key in profile:
             return profile[key]
 
-    # Final compatibility search through structured categories.
+    # Final compatibility search.
     for category_data in data.values():
+
         if isinstance(category_data, dict):
             if key in category_data:
                 return category_data[key]
@@ -79,7 +91,7 @@ def recall(key):
 
 
 def forget(key):
-    """Remove a memory value."""
+    """Remove a memory value using one load and one save operation."""
 
     memory = load_memory()
     data = _get_data_dict(memory)
@@ -93,8 +105,12 @@ def forget(key):
         if isinstance(category_data, dict):
             if subkey in category_data:
                 del category_data[subkey]
-                save_memory(memory)
-                return True
+                return save_memory(memory)
+
+    # Compatibility languages list.
+    if key == "languages" and key in data:
+        del data[key]
+        return save_memory(memory)
 
     # Profile fallback.
     profile = data.get("profile")
@@ -102,14 +118,12 @@ def forget(key):
     if isinstance(profile, dict):
         if key in profile:
             del profile[key]
-            save_memory(memory)
-            return True
+            return save_memory(memory)
 
     # Direct top-level fallback.
     if key in data:
         del data[key]
-        save_memory(memory)
-        return True
+        return save_memory(memory)
 
     return False
 
@@ -172,7 +186,7 @@ def normalize_language(language):
 # ---------------------------------
 
 def remember_language(language):
-    """Add a programming language without creating duplicates."""
+    """Add a programming language without duplicates."""
 
     language = normalize_language(language)
 
@@ -195,9 +209,7 @@ def remember_language(language):
     if language not in normalized_languages:
         normalized_languages.append(language)
 
-    remember("languages", normalized_languages)
-
-    return True
+    return remember("languages", normalized_languages)
 
 
 def recall_languages():
