@@ -2,6 +2,7 @@ from ai.intent import detect_intent
 from brain.context import last_conversation
 from brain.context_builder import build_context
 from brain.context_resolver import resolve_reference
+from brain.followup import detect_followup
 from brain.reasoning import reason
 from brain.topic_tracker import TopicTracker, extract_topic
 from knowledge.profile import recall
@@ -21,6 +22,11 @@ class Brain:
 
         if topic:
             self.topic_tracker.add(topic)
+
+        # -----------------------------
+        # Detect follow-up type
+        # -----------------------------
+        followup_type = detect_followup(user)
 
         # -----------------------------
         # Build Context
@@ -114,17 +120,67 @@ class Brain:
             return "You haven't mentioned any language."
 
         # -----------------------------
-        # Topic-aware references
-        #
-        # IMPORTANT:
-        # Handle references BEFORE the
-        # reasoning engine so that the
-        # reasoning fallback cannot swallow
-        # the reference request.
+        # Current / Previous Topic
         # -----------------------------
         current_topic = self.topic_tracker.current()
         previous_topic = self.topic_tracker.previous()
 
+        # -----------------------------
+        # Follow-up: comparison
+        # -----------------------------
+        if followup_type == "comparison":
+
+            if current_topic and previous_topic:
+                return (
+                    f"You're currently talking about {current_topic}. "
+                    f"Previously, we were discussing {previous_topic}. "
+                    f"Which one would you like to compare?"
+                )
+
+            if current_topic:
+                return (
+                    f"You're currently talking about {current_topic}. "
+                    f"What aspect of {current_topic} do you want to compare?"
+                )
+
+        # -----------------------------
+        # Follow-up: topic reference
+        # -----------------------------
+        if followup_type in ("reference", "topic_followup"):
+
+            if current_topic:
+
+                if "speed" in user:
+                    return (
+                        f"You're asking about the speed and performance "
+                        f"of {current_topic}."
+                    )
+
+                if "difficult" in user or "hard" in user:
+                    return (
+                        f"You're asking whether {current_topic} "
+                        f"is difficult to learn or use."
+                    )
+
+                return (
+                    f"You're referring to {current_topic}. "
+                    f"What would you like to know about {current_topic}?"
+                )
+
+        # -----------------------------
+        # Follow-up: continuation
+        # -----------------------------
+        if followup_type == "continuation":
+
+            if current_topic:
+                return (
+                    f"Let's continue with {current_topic}. "
+                    f"What would you like to explore next?"
+                )
+
+        # -----------------------------
+        # Context-aware references
+        # -----------------------------
         if reference:
 
             reference_type = reference["reference"]
@@ -177,7 +233,7 @@ class Brain:
         # -----------------------------
         # Reasoning Engine
         # -----------------------------
-        reasoning_response = reason(user)
+        reasoning_response = reason(user, current_topic)
 
         if reasoning_response:
             return reasoning_response
