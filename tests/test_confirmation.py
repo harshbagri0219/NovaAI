@@ -412,3 +412,350 @@ class TestRegression:
 
         assert result.status.value == "error"
         assert "boom" in (result.error or "")
+
+
+class TestConfirmationIntegrity:
+
+    def test_request_ids_are_unique(self):
+        manager = ConfirmationManager()
+        tool = make_tool()
+
+        request_a = manager.create_request(tool, "first")
+        request_b = manager.create_request(tool, "second")
+        request_c = manager.create_request(tool, "third")
+
+        assert request_a.request_id != request_b.request_id
+        assert request_b.request_id != request_c.request_id
+        assert request_a.request_id != request_c.request_id
+
+    def test_approved_request_cannot_be_approved_again(self):
+        manager = ConfirmationManager()
+        tool = make_tool()
+
+        request = manager.create_request(tool)
+        manager.approve(request.request_id)
+
+        with pytest.raises(ConfirmationError, match="approved"):
+            manager.approve(request.request_id)
+
+    def test_expired_request_cannot_be_approved(self):
+        manager = ConfirmationManager(ttl_seconds=-1)
+        tool = make_tool()
+
+        request = manager.create_request(tool, ttl_seconds=-1)
+
+        with pytest.raises(ConfirmationError, match="expired"):
+            manager.approve(request.request_id)
+
+    def test_expired_request_cannot_be_denied(self):
+        manager = ConfirmationManager(ttl_seconds=-1)
+        tool = make_tool()
+
+        request = manager.create_request(tool, ttl_seconds=-1)
+
+        with pytest.raises(ConfirmationError, match="expired"):
+            manager.deny(request.request_id)
+
+    def test_destructive_capability_cannot_become_approved(self):
+        manager = ConfirmationManager()
+        tool = make_tool(capability=Capability.DESTRUCTIVE)
+
+        request = manager.create_request(tool)
+
+        assert request.capability == Capability.DESTRUCTIVE
+        assert request.status == ConfirmationStatus.PENDING
+
+        manager.approve(request.request_id)
+
+        assert request.status == ConfirmationStatus.APPROVED
+
+    def test_confirmation_request_preserves_tool_name_and_capability(self):
+        manager = ConfirmationManager()
+        tool = make_tool(name="custom_tool", capability=Capability.STATE_CHANGING)
+
+        request = manager.create_request(tool, "test description")
+
+        assert request.tool_name == "custom_tool"
+        assert request.capability == Capability.STATE_CHANGING
+        assert request.description == "test description"
+
+
+class TestContextIntegrity:
+
+    def test_execute_approved_uses_stored_context_when_caller_does_not_supply(self):
+        manager = ConfirmationManager()
+        executor = ToolExecutor(confirmation_manager=manager)
+
+        captured = {}
+
+        def stateful(context=None):
+            captured["context"] = context
+            return "ok"
+
+        tool = ToolAdapter(
+            name="stateful",
+            runnable=stateful,
+            capability=Capability.STATE_CHANGING,
+        )
+
+        registry = ToolRegistry()
+        registry.register(tool)
+
+        stored_context = {"key": "stored_value"}
+
+        result = executor.execute(tool, context=stored_context)
+        request = result.confirmation_request
+
+        manager.approve(request.request_id)
+
+        executed = executor.execute_approved(
+            request.request_id,
+            registry=registry,
+        )
+
+        assert executed.status.value == "success"
+        assert captured["context"] == stored_context
+
+    def test_execute_approved_stored_context_wins_over_caller_context(self):
+        manager = ConfirmationManager()
+        executor = ToolExecutor(confirmation_manager=manager)
+
+        captured = {}
+
+        def stateful(context=None):
+            captured["context"] = context
+            return "ok"
+
+        tool = ToolAdapter(
+            name="stateful",
+            runnable=stateful,
+            capability=Capability.STATE_CHANGING,
+        )
+
+        registry = ToolRegistry()
+        registry.register(tool)
+
+        stored_context = {"key": "stored_value"}
+        caller_context = {"key": "caller_value"}
+
+        result = executor.execute(tool, context=stored_context)
+        request = result.confirmation_request
+
+        manager.approve(request.request_id)
+
+        executed = executor.execute_approved(
+            request.request_id,
+            context=caller_context,
+            registry=registry,
+        )
+
+        assert executed.status.value == "success"
+        assert captured["context"] == stored_context
+
+    def test_execute_confirmed_uses_stored_context_when_caller_does_not_supply(self):
+        manager = ConfirmationManager()
+        executor = ToolExecutor(confirmation_manager=manager)
+
+        captured = {}
+
+        def stateful(context=None):
+            captured["context"] = context
+            return "ok"
+
+        tool = ToolAdapter(
+            name="stateful",
+            runnable=stateful,
+            capability=Capability.STATE_CHANGING,
+        )
+
+        stored_context = {"key": "stored_value"}
+
+        result = executor.execute(tool, context=stored_context)
+        request = result.confirmation_request
+
+        manager.approve(request.request_id)
+
+        executed = executor.execute_confirmed(
+            request.request_id,
+            tool,
+        )
+
+        assert executed.status.value == "success"
+        assert captured["context"] == stored_context
+
+    def test_execute_confirmed_stored_context_wins_over_caller_context(self):
+        manager = ConfirmationManager()
+        executor = ToolExecutor(confirmation_manager=manager)
+
+        captured = {}
+
+        def stateful(context=None):
+            captured["context"] = context
+            return "ok"
+
+        tool = ToolAdapter(
+            name="stateful",
+            runnable=stateful,
+            capability=Capability.STATE_CHANGING,
+        )
+
+        stored_context = {"key": "stored_value"}
+        caller_context = {"key": "caller_value"}
+
+        result = executor.execute(tool, context=stored_context)
+        request = result.confirmation_request
+
+        manager.approve(request.request_id)
+
+        executed = executor.execute_confirmed(
+            request.request_id,
+            tool,
+            context=caller_context,
+        )
+
+        assert executed.status.value == "success"
+        assert captured["context"] == stored_context
+
+    def test_context_tampering_is_rejected(self):
+        manager = ConfirmationManager()
+        executor = ToolExecutor(confirmation_manager=manager)
+
+        captured = {}
+
+        def stateful(context=None):
+            captured["context"] = context
+            return "ok"
+
+        tool = ToolAdapter(
+            name="stateful",
+            runnable=stateful,
+            capability=Capability.STATE_CHANGING,
+        )
+
+        registry = ToolRegistry()
+        registry.register(tool)
+
+        stored_context = {"key": "authorized"}
+
+        result = executor.execute(tool, context=stored_context)
+        request = result.confirmation_request
+
+        manager.approve(request.request_id)
+
+        tampered_context = {"key": "tampered"}
+
+        executed = executor.execute_approved(
+            request.request_id,
+            context=tampered_context,
+            registry=registry,
+        )
+
+        assert executed.status.value == "success"
+        assert captured["context"] == stored_context
+        assert captured["context"] != tampered_context
+
+    def test_execute_confirmed_context_tampering_is_rejected(self):
+        manager = ConfirmationManager()
+        executor = ToolExecutor(confirmation_manager=manager)
+
+        captured = {}
+
+        def stateful(context=None):
+            captured["context"] = context
+            return "ok"
+
+        tool = ToolAdapter(
+            name="stateful",
+            runnable=stateful,
+            capability=Capability.STATE_CHANGING,
+        )
+
+        stored_context = {"key": "authorized"}
+
+        result = executor.execute(tool, context=stored_context)
+        request = result.confirmation_request
+
+        manager.approve(request.request_id)
+
+        tampered_context = {"key": "tampered"}
+
+        executed = executor.execute_confirmed(
+            request.request_id,
+            tool,
+            context=tampered_context,
+        )
+
+        assert executed.status.value == "success"
+        assert captured["context"] == stored_context
+        assert captured["context"] != tampered_context
+
+    def test_execute_approved_caller_context_used_when_no_stored_context(self):
+        manager = ConfirmationManager()
+        executor = ToolExecutor(confirmation_manager=manager)
+
+        captured = {}
+
+        def stateful(context=None):
+            captured["context"] = context
+            return "ok"
+
+        tool = ToolAdapter(
+            name="stateful",
+            runnable=stateful,
+            capability=Capability.STATE_CHANGING,
+        )
+
+        registry = ToolRegistry()
+        registry.register(tool)
+
+        result = executor.execute(tool)
+        request = result.confirmation_request
+
+        assert request.context is None
+
+        manager.approve(request.request_id)
+
+        caller_context = {"key": "caller_value"}
+
+        executed = executor.execute_approved(
+            request.request_id,
+            context=caller_context,
+            registry=registry,
+        )
+
+        assert executed.status.value == "success"
+        assert captured["context"] == caller_context
+
+    def test_execute_confirmed_caller_context_used_when_no_stored_context(self):
+        manager = ConfirmationManager()
+        executor = ToolExecutor(confirmation_manager=manager)
+
+        captured = {}
+
+        def stateful(context=None):
+            captured["context"] = context
+            return "ok"
+
+        tool = ToolAdapter(
+            name="stateful",
+            runnable=stateful,
+            capability=Capability.STATE_CHANGING,
+        )
+
+        result = executor.execute(tool)
+        request = result.confirmation_request
+
+        assert request.context is None
+
+        manager.approve(request.request_id)
+
+        caller_context = {"key": "caller_value"}
+
+        executed = executor.execute_confirmed(
+            request.request_id,
+            tool,
+            context=caller_context,
+        )
+
+        assert executed.status.value == "success"
+        assert captured["context"] == caller_context

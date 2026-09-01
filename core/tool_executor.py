@@ -108,8 +108,10 @@ class ToolExecutor:
                 error=str(exc),
             )
 
+        effective_context = request.context if request.context is not None else context
+
         try:
-            result = tool.run(context)
+            result = tool.run(effective_context)
         except Exception as exc:
             return StructuredResult(
                 status=ResultStatus.ERROR,
@@ -146,8 +148,10 @@ class ToolExecutor:
                     error="tool identity mismatch",
                 )
 
+        effective_context = request.context if request.context is not None else context
+
         try:
-            result = tool.run(context)
+            result = tool.run(effective_context)
         except Exception as exc:
             return StructuredResult(
                 status=ResultStatus.ERROR,
