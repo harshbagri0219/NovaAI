@@ -29,11 +29,11 @@ def test_adapter_run_returns_structured_result_success():
 
 
 def test_adapter_run_returns_structured_result_on_exception():
-    def bad():
+    def bad(ctx):
         raise RuntimeError("boom")
 
     adapter = ToolAdapter(name="bad", runnable=bad)
-    result = adapter.run()
+    result = adapter.run(context={})
     assert isinstance(result, StructuredResult)
     assert result.status == ResultStatus.ERROR
     assert "boom" in (result.error or "")
@@ -94,11 +94,70 @@ def test_registry_from_plugin_map():
 def test_registry_from_plugin_map_error_safety():
     from core.tool_registry import ToolRegistry
 
-    def bad():
+    def bad(ctx):
         raise ValueError("fail")
 
     plugin_map = {"bad": bad}
     registry = ToolRegistry.from_plugin_map(plugin_map)
-    result = registry.get("bad").run()
+    result = registry.get("bad").run(context={})
     assert result.status == ResultStatus.ERROR
     assert "fail" in (result.error or "")
+
+
+def test_adapter_run_passes_context_to_callable():
+    received = {}
+
+    def context_tool(ctx):
+        received["ctx"] = ctx
+        return "ok"
+
+    adapter = ToolAdapter(name="ctx", runnable=context_tool)
+    result = adapter.run(context={"key": "value"})
+    assert result.status == ResultStatus.SUCCESS
+    assert result.payload == "ok"
+    assert received["ctx"] == {"key": "value"}
+
+
+def test_adapter_run_no_arg_callable_executes_without_context():
+    call_count = 0
+
+    def no_arg_tool():
+        nonlocal call_count
+        call_count += 1
+        return "ok"
+
+    adapter = ToolAdapter(name="noarg", runnable=no_arg_tool)
+    result = adapter.run(context={"ignored": True})
+    assert result.status == ResultStatus.SUCCESS
+    assert result.payload == "ok"
+    assert call_count == 1
+
+
+def test_adapter_internal_type_error_is_not_retried():
+    call_count = 0
+
+    def bad(ctx):
+        nonlocal call_count
+        call_count += 1
+        raise TypeError("internal type error")
+
+    adapter = ToolAdapter(name="bad", runnable=bad)
+    result = adapter.run(context={})
+    assert result.status == ResultStatus.ERROR
+    assert "internal type error" in (result.error or "")
+    assert call_count == 1
+
+
+def test_adapter_runs_exactly_once():
+    call_count = 0
+
+    def counting():
+        nonlocal call_count
+        call_count += 1
+        return "ok"
+
+    adapter = ToolAdapter(name="count", runnable=counting)
+    result = adapter.run()
+    assert result.status == ResultStatus.SUCCESS
+    assert result.payload == "ok"
+    assert call_count == 1

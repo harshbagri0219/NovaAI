@@ -1,3 +1,5 @@
+import inspect
+
 from core.interfaces import Capability, StructuredResult, Tool
 from core.interfaces import ResultStatus
 
@@ -26,7 +28,10 @@ class ToolAdapter:
 
     def run(self, context=None):
         try:
-            result = self._runnable()
+            if context is not None and _accepts_context(self._runnable):
+                result = self._runnable(context)
+            else:
+                result = self._runnable()
         except Exception as exc:
             return StructuredResult(
                 status=ResultStatus.ERROR,
@@ -38,3 +43,20 @@ class ToolAdapter:
             status=ResultStatus.SUCCESS,
             payload=result,
         )
+
+
+def _accepts_context(runnable):
+    try:
+        sig = inspect.signature(runnable)
+    except (ValueError, TypeError):
+        return True
+
+    for param in sig.parameters.values():
+        if param.kind in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.VAR_POSITIONAL,
+        ):
+            return True
+
+    return False

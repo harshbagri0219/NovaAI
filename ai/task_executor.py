@@ -1,4 +1,9 @@
-from core.router import handle_command
+from core.controlled_router import handle_controlled_command
+from core.tool_catalog import get_registry
+from core.tool_executor import ToolExecutor
+
+
+_executor = ToolExecutor()
 
 
 def execute_plan(plan, memory):
@@ -7,6 +12,8 @@ def execute_plan(plan, memory):
 
     if not plan:
         return results
+
+    registry = get_registry()
 
     for task in plan:
 
@@ -17,7 +24,12 @@ def execute_plan(plan, memory):
         # -----------------------------
         if task_name == "battery":
 
-            response = handle_command("battery", memory)
+            response = handle_controlled_command(
+                "battery",
+                memory,
+                registry=registry,
+                executor=_executor,
+            )
 
             results.append({
                 "task": task_name,
@@ -29,7 +41,12 @@ def execute_plan(plan, memory):
         # -----------------------------
         elif task_name == "storage":
 
-            response = handle_command("storage", memory)
+            response = handle_controlled_command(
+                "storage",
+                memory,
+                registry=registry,
+                executor=_executor,
+            )
 
             results.append({
                 "task": task_name,
