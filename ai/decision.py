@@ -1,14 +1,22 @@
 from ai.learning import learn
-from core.router import handle_command
-from brain.brain import Brain
 from ai.task_coordinator import coordinate
 from ai.result_analyzer import analyze_results
+from brain.brain import Brain
+from core.controlled_router import handle_controlled_command
+from core.tool_catalog import get_registry
+from core.tool_executor import ToolExecutor
+from core.interfaces import ResultStatus, StructuredResult
 
 
 brain = Brain()
 
+_registry = get_registry()
+_executor = ToolExecutor()
 
-def decide(user, memory):
+
+def decide(user, memory, registry=None, executor=None):
+    registry = registry or _registry
+    executor = executor or _executor
 
     # -----------------------------
     # Learning Engine
@@ -33,7 +41,15 @@ def decide(user, memory):
     # -----------------------------
     # Plugin Router
     # -----------------------------
-    response = handle_command(user, memory)
+    response = handle_controlled_command(
+        user,
+        memory,
+        registry=registry,
+        executor=executor,
+    )
+
+    if isinstance(response, StructuredResult):
+        return response
 
     if response:
         return response

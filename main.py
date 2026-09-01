@@ -6,6 +6,7 @@ from startup import startup
 from utils.logger import write_log
 from monitor.system_monitor import check_system
 from ai.decision import decide
+from core.interfaces import ResultStatus, StructuredResult
 
 
 if __name__ == "__main__":
@@ -57,6 +58,28 @@ if __name__ == "__main__":
         else:
 
             response = decide(user, memory)
+
+            if isinstance(response, StructuredResult):
+
+                if response.status == ResultStatus.CONFIRMATION_REQUIRED:
+
+                    speak(response.error or "Confirmation required.")
+
+                    write_log(user, response.error or "Confirmation required.")
+
+                    remember(user, response.error or "Confirmation required.")
+
+                    continue
+
+                if response.status == ResultStatus.ERROR:
+
+                    speak(response.error or "Tool execution failed.")
+
+                    write_log(user, response.error or "Tool execution failed.")
+
+                    remember(user, response.error or "Tool execution failed.")
+
+                    continue
 
             if not response:
                 response = "I am still learning."
