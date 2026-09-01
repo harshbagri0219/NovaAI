@@ -6,6 +6,7 @@ from typing import Any, Optional, Protocol, runtime_checkable
 class ResultStatus(str, Enum):
     SUCCESS = "success"
     ERROR = "error"
+    CONFIRMATION_REQUIRED = "confirmation_required"
 
 
 @dataclass

@@ -8,60 +8,61 @@ from monitor.system_monitor import check_system
 from ai.decision import decide
 
 
-memory = load_memory()
+if __name__ == "__main__":
 
-startup()
+    memory = load_memory()
 
+    startup()
 
-while True:
+    while True:
 
-    # ---------- System Monitoring ----------
-    alerts = check_system()
+        # ---------- System Monitoring ----------
+        alerts = check_system()
 
-    for alert in alerts:
-        speak(alert)
+        for alert in alerts:
+            speak(alert)
 
-    # ---------- Listen ----------
-    user = listen()
+        # ---------- Listen ----------
+        user = listen()
 
-    # ---------- Exit ----------
-    if user.lower() == "exit":
+        # ---------- Exit ----------
+        if user.lower() == "exit":
 
-        speak("Goodbye!")
+            speak("Goodbye!")
 
-        write_log(user, "Goodbye!")
+            write_log(user, "Goodbye!")
 
-        remember(user, "Goodbye!")
+            remember(user, "Goodbye!")
 
-        break
+            break
 
-    # ---------- Remember Owner ----------
-    elif user.lower().startswith("remember my name is "):
+        # ---------- Remember Owner ----------
+        elif user.lower().startswith("remember my name is "):
 
-        name = user[len("remember my name is "):].strip()
+            name = user[len("remember my name is "):].strip()
 
-        memory["owner"] = name
+            memory["owner"] = name
 
-        save_memory(memory)
+            save_memory(memory)
 
-        response = f"I will remember your name is {name}."
+            response = f"I will remember your name is {name}."
 
-        speak(response)
+            speak(response)
 
-        write_log(user, response)
+            write_log(user, response)
 
-        remember(user, response)
+            remember(user, response)
 
-    # ---------- Central Decision Engine ----------
-    else:
+        # ---------- Central Decision Engine ----------
+        else:
 
-        response = decide(user, memory)
+            response = decide(user, memory)
 
-        if not response:
-            response = "I am still learning."
+            if not response:
+                response = "I am still learning."
 
-        speak(response)
+            speak(response)
 
-        write_log(user, response)
+            write_log(user, response)
 
-        remember(user, response)
+            remember(user, response)

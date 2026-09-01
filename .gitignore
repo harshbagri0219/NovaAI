@@ -33,6 +33,10 @@ credentials/
 build/
 *.apk
 
+# Kilo / Agent Manager state
+.kilo/
+kilo.jsonc
+
 # IDE
 .vscode/
 .idea/
