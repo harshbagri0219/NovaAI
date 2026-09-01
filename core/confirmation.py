@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 from core.interfaces import Capability, ConfirmationRequest, ConfirmationStatus
 
@@ -20,7 +20,7 @@ class ConfirmationManager:
 
         request_id = secrets.token_urlsafe(16)
         ttl = ttl_seconds if ttl_seconds is not None else self._ttl.total_seconds()
-        expires_at = datetime.utcnow() + timedelta(seconds=ttl)
+        expires_at = datetime.now(UTC) + timedelta(seconds=ttl)
 
         request = ConfirmationRequest(
             request_id=request_id,
@@ -93,4 +93,4 @@ class ConfirmationManager:
     def _is_expired(self, request):
         if request.expires_at is None:
             return False
-        return datetime.utcnow() > request.expires_at
+        return datetime.now(UTC) > request.expires_at
