@@ -14,6 +14,7 @@ class StructuredResult:
     status: ResultStatus
     payload: Any = None
     error: Optional[str] = None
+    confirmation_request: Optional["ConfirmationRequest"] = None
 
 
 class Capability(str, Enum):
@@ -36,3 +37,22 @@ class Tool(Protocol):
 
     def run(self, context: Any) -> StructuredResult:
         ...
+
+
+class ConfirmationStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    DENIED = "denied"
+    EXPIRED = "expired"
+    CONSUMED = "consumed"
+
+
+@dataclass
+class ConfirmationRequest:
+    request_id: str
+    tool_name: str
+    capability: Capability
+    description: str
+    status: ConfirmationStatus = ConfirmationStatus.PENDING
+    expires_at: Optional[Any] = None
+    context: Optional[Any] = None
