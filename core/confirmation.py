@@ -78,6 +78,14 @@ class ConfirmationManager:
                 f"tool mismatch: expected {expected_name}, got {actual_name}"
             )
 
+        expected_capability = request.capability
+        actual_capability = getattr(tool, "capability", None)
+
+        if actual_capability != expected_capability:
+            raise ConfirmationError(
+                "tool capability mismatch"
+            )
+
         request.status = ConfirmationStatus.CONSUMED
         return request
 

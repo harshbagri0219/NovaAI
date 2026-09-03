@@ -127,28 +127,52 @@ class ToolExecutor:
         )
 
     def execute_confirmed(self, request_id, tool, context=None, registry=None):
-        try:
-            request = self._confirmations.consume(request_id, tool)
-        except ConfirmationError as exc:
+        request = self._confirmations.get_request(request_id)
+
+        if request is None:
             return StructuredResult(
                 status=ResultStatus.ERROR,
-                error=str(exc),
+                error="request not found",
+            )
+
+        if request.status != ConfirmationStatus.APPROVED:
+            return StructuredResult(
+                status=ResultStatus.ERROR,
+                error=f"request is not approved (status: {request.status.value})",
+            )
+
+        if self._confirmations._is_expired(request):
+            return StructuredResult(
+                status=ResultStatus.ERROR,
+                error="request expired",
             )
 
         if registry is not None:
             registered = registry.get(request.tool_name)
+
             if registered is None:
                 return StructuredResult(
                     status=ResultStatus.ERROR,
                     error="tool not registered",
                 )
+
             if registered is not tool:
                 return StructuredResult(
                     status=ResultStatus.ERROR,
                     error="tool identity mismatch",
                 )
 
-        effective_context = request.context if request.context is not None else context
+        try:
+            self._confirmations.consume(request_id, tool)
+        except ConfirmationError as exc:
+            return StructuredResult(
+                status=ResultStatus.ERROR,
+                error=str(exc),
+            )
+
+        effective_context = (
+            request.context if request.context is not None else context
+        )
 
         try:
             result = tool.run(effective_context)
