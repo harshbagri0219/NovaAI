@@ -1,14 +1,6 @@
-from core.interfaces import (
-    Capability,
-    ConfirmationRequest,
-    ConfirmationStatus,
-    ResultStatus,
-    StructuredResult,
-    Tool,
-)
-from core.confirmation import ConfirmationError, ConfirmationManager
+from core.interfaces import Capability, ConfirmationRequest, ResultStatus, StructuredResult, Tool
+from core.confirmation import ConfirmationError, ConfirmationManager, ConfirmationStatus
 from policy.engine import PolicyEngine
-
 
 class ToolExecutor:
 

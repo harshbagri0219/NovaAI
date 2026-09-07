@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 
 from datetime import datetime, timedelta, UTC
 
@@ -17,7 +17,7 @@ from core.tool_registry import ToolRegistry
 
 def test_read_only_executes_end_to_end():
     registry = ToolRegistry.from_plugin_map({
-        "time": lambda: "12:00",
+        "time": (lambda: "12:00", Capability.READ_ONLY),
     })
 
     executor = ToolExecutor()
@@ -34,7 +34,7 @@ def test_read_only_executes_end_to_end():
 
 def test_state_changing_creates_confirmation_end_to_end():
     registry = ToolRegistry.from_plugin_map({
-        "device": lambda: "50%",
+        "device": (lambda: "50%", Capability.STATE_CHANGING),
     })
 
     executor = ToolExecutor()
@@ -62,7 +62,7 @@ def test_confirmation_does_not_execute_end_to_end():
         return "executed"
 
     registry = ToolRegistry.from_plugin_map({
-        "device": stateful,
+        "device": (stateful, Capability.STATE_CHANGING),
     })
 
     executor = ToolExecutor()
@@ -286,7 +286,7 @@ def test_policy_denial_cannot_be_overridden_end_to_end():
 
 def test_ai_cannot_self_approve_end_to_end():
     registry = ToolRegistry.from_plugin_map({
-        "device": lambda: "50%",
+        "device": (lambda: "50%", Capability.STATE_CHANGING),
     })
 
     executor = ToolExecutor()
@@ -342,3 +342,4 @@ def test_complete_decision_authorization_execution_flow():
 
     assert executed.status == ResultStatus.SUCCESS
     assert executed.payload == "50%"
+

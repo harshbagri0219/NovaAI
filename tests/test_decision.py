@@ -30,7 +30,7 @@ def test_decision_does_not_import_legacy_router():
 
 def test_decision_allows_read_only_tool():
     registry = ToolRegistry.from_plugin_map({
-        "time": lambda: "12:00",
+        "time": (lambda: "12:00", Capability.READ_ONLY),
     })
     executor = ToolExecutor()
     response = decide("What time is it?", {}, registry=registry, executor=executor)
@@ -86,7 +86,7 @@ def test_decision_plugin_exception_becomes_error():
         raise RuntimeError("boom")
 
     registry = ToolRegistry.from_plugin_map({
-        "time": bad,
+        "time": (bad, Capability.READ_ONLY),
     })
     executor = ToolExecutor()
     response = decide("What time is it?", {}, registry=registry, executor=executor)
@@ -131,9 +131,10 @@ def test_decision_uses_controlled_execution():
         return "ok"
 
     registry = ToolRegistry.from_plugin_map({
-        "time": counting,
+        "time": (counting, Capability.READ_ONLY),
     })
     executor = ToolExecutor()
     response = decide("What time is it?", {}, registry=registry, executor=executor)
     assert response == "ok"
     assert call_count == 1
+

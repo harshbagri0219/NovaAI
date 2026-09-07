@@ -1,6 +1,7 @@
 from core.interfaces import Capability, ResultStatus, StructuredResult
 from core.tool_adapter import ToolAdapter
 from core.tool_registry import ToolRegistry
+import pytest
 from policy.engine import PolicyEngine
 
 
@@ -34,10 +35,9 @@ def test_destructive_adapter_never_auto_allowed():
     assert decision.requires_confirmation is False
 
 
-def test_unknown_capability_adapter_fails_closed():
-    adapter = ToolAdapter(name="mystery", runnable=lambda: "data", capability="unknown")
-    decision = PolicyEngine().evaluate(adapter)
-    assert decision.decision == "deny"
+def test_unknown_capability_adapter_raises_typeerror():
+    with pytest.raises(TypeError):
+        ToolAdapter(name="mystery", runnable=lambda: "data", capability="unknown")
 
 
 def test_existing_plugin_battery_wrapped():

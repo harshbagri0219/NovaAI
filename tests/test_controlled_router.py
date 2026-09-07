@@ -48,29 +48,64 @@ def test_arbitrary_plugin_is_not_automatically_executable():
 
 def test_read_only_tool_allowed_and_executes():
     registry = ToolRegistry.from_plugin_map({
-        "time": lambda: "12:00",
+        "time": (
+            lambda: "12:00",
+            Capability.READ_ONLY,
+        ),
     })
+
     executor = ToolExecutor()
-    response = handle_controlled_command("What time is it?", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "What time is it?",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert response == "12:00"
 
 
 def test_state_changing_tool_returns_confirmation_required():
     registry = ToolRegistry.from_plugin_map({
-        "battery": lambda: "50%",
+        "battery": (
+            lambda: "50%",
+            Capability.STATE_CHANGING,
+        ),
     })
+
     executor = ToolExecutor()
-    response = handle_controlled_command("battery", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "battery",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert isinstance(response, StructuredResult)
     assert response.status == ResultStatus.CONFIRMATION_REQUIRED
 
 
 def test_destructive_tool_returns_error():
-    adapter = ToolAdapter(name="battery", runnable=lambda: "wiped", capability=Capability.DESTRUCTIVE)
+    adapter = ToolAdapter(
+        name="battery",
+        runnable=lambda: "wiped",
+        capability=Capability.DESTRUCTIVE,
+    )
+
     registry = ToolRegistry()
     registry.register(adapter)
+
     executor = ToolExecutor()
-    response = handle_controlled_command("battery", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "battery",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert isinstance(response, str)
     assert "not permitted" in response
 
@@ -78,14 +113,28 @@ def test_destructive_tool_returns_error():
 def test_unknown_intent_fails_closed():
     registry = ToolRegistry()
     executor = ToolExecutor()
-    response = handle_controlled_command("completely unknown intent", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "completely unknown intent",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert response is None
 
 
 def test_unregistered_callable_cannot_execute():
     registry = ToolRegistry()
     executor = ToolExecutor()
-    response = handle_controlled_command("What time is it?", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "What time is it?",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert response is None
 
 
@@ -94,10 +143,21 @@ def test_plugin_exception_becomes_structured_error():
         raise RuntimeError("boom")
 
     registry = ToolRegistry.from_plugin_map({
-        "time": bad,
+        "time": (
+            bad,
+            Capability.READ_ONLY,
+        ),
     })
+
     executor = ToolExecutor()
-    response = handle_controlled_command("What time is it?", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "What time is it?",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert isinstance(response, str)
     assert "boom" in response
 
@@ -116,10 +176,21 @@ def test_allow_executes_exactly_once():
         return "ok"
 
     registry = ToolRegistry.from_plugin_map({
-        "time": counting,
+        "time": (
+            counting,
+            Capability.READ_ONLY,
+        ),
     })
+
     executor = ToolExecutor()
-    response = handle_controlled_command("What time is it?", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "What time is it?",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert response == "ok"
     assert call_count == 1
 
@@ -133,10 +204,21 @@ def test_confirm_never_executes():
         return "executed"
 
     registry = ToolRegistry.from_plugin_map({
-        "battery": stateful,
+        "battery": (
+            stateful,
+            Capability.STATE_CHANGING,
+        ),
     })
+
     executor = ToolExecutor()
-    response = handle_controlled_command("battery", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "battery",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert isinstance(response, StructuredResult)
     assert response.status == ResultStatus.CONFIRMATION_REQUIRED
     assert call_count == 0
@@ -150,11 +232,24 @@ def test_deny_never_executes():
         call_count += 1
         return "wiped"
 
-    adapter = ToolAdapter(name="battery", runnable=destructive, capability=Capability.DESTRUCTIVE)
+    adapter = ToolAdapter(
+        name="battery",
+        runnable=destructive,
+        capability=Capability.DESTRUCTIVE,
+    )
+
     registry = ToolRegistry()
     registry.register(adapter)
+
     executor = ToolExecutor()
-    response = handle_controlled_command("battery", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "battery",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert isinstance(response, str)
     assert call_count == 0
 
@@ -168,9 +263,11 @@ def test_task_executor_uses_controlled_path():
     ]
 
     results = execute_plan(plan, {})
+
     assert len(results) == 2
     assert results[0]["task"] == "battery"
     assert results[1]["task"] == "storage"
+
     for item in results:
         assert item["result"] is not None
 
@@ -184,21 +281,44 @@ def test_no_duplicate_execution():
         return "ok"
 
     registry = ToolRegistry.from_plugin_map({
-        "time": counting,
+        "time": (
+            counting,
+            Capability.READ_ONLY,
+        ),
     })
+
     executor = ToolExecutor()
+
     for _ in range(5):
-        response = handle_controlled_command("What time is it?", {}, registry=registry, executor=executor)
+        response = handle_controlled_command(
+            "What time is it?",
+            {},
+            registry=registry,
+            executor=executor,
+        )
+
         assert response == "ok"
+
     assert call_count == 5
 
 
 def test_controlled_router_normalizes_non_string_payload():
     registry = ToolRegistry.from_plugin_map({
-        "time": lambda: {"key": "value"},
+        "time": (
+            lambda: {"key": "value"},
+            Capability.READ_ONLY,
+        ),
     })
+
     executor = ToolExecutor()
-    response = handle_controlled_command("What time is it?", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "What time is it?",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert response == "{'key': 'value'}"
 
 
@@ -209,12 +329,24 @@ def test_context_reaches_intended_tool():
         received["ctx"] = ctx
         return "ok"
 
-    adapter = ToolAdapter(name="memory", runnable=context_tool, capability=Capability.READ_ONLY)
+    adapter = ToolAdapter(
+        name="memory",
+        runnable=context_tool,
+        capability=Capability.READ_ONLY,
+    )
+
     registry = ToolRegistry()
     registry.register(adapter)
+
     executor = ToolExecutor()
+
     memory = {"owner": "Harshvardhan"}
-    result = executor.execute(adapter, context=memory)
+
+    result = executor.execute(
+        adapter,
+        context=memory,
+    )
+
     assert result.status == ResultStatus.SUCCESS
     assert result.payload == "ok"
     assert received["ctx"] == memory
@@ -223,16 +355,34 @@ def test_context_reaches_intended_tool():
 def test_no_fallback_to_legacy_router_after_deny():
     registry = ToolRegistry()
     executor = ToolExecutor()
-    response = handle_controlled_command("battery", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "battery",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert response is None
 
 
 def test_no_fallback_to_legacy_router_after_confirm():
     registry = ToolRegistry.from_plugin_map({
-        "battery": lambda: "50%",
+        "battery": (
+            lambda: "50%",
+            Capability.STATE_CHANGING,
+        ),
     })
+
     executor = ToolExecutor()
-    response = handle_controlled_command("battery", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "battery",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert isinstance(response, StructuredResult)
     assert response.status == ResultStatus.CONFIRMATION_REQUIRED
 
@@ -242,9 +392,20 @@ def test_no_fallback_to_legacy_router_after_error():
         raise RuntimeError("boom")
 
     registry = ToolRegistry.from_plugin_map({
-        "time": bad,
+        "time": (
+            bad,
+            Capability.READ_ONLY,
+        ),
     })
+
     executor = ToolExecutor()
-    response = handle_controlled_command("What time is it?", {}, registry=registry, executor=executor)
+
+    response = handle_controlled_command(
+        "What time is it?",
+        {},
+        registry=registry,
+        executor=executor,
+    )
+
     assert isinstance(response, str)
     assert "boom" in response

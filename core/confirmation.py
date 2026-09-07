@@ -1,15 +1,20 @@
 import secrets
 from datetime import datetime, timedelta, UTC
+from enum import Enum
 
-from core.interfaces import Capability, ConfirmationRequest, ConfirmationStatus
-
+from core.interfaces import Capability, ConfirmationRequest
 
 class ConfirmationError(Exception):
     pass
 
+class ConfirmationStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    DENIED = "denied"
+    EXPIRED = "expired"
+    CONSUMED = "consumed"
 
 class ConfirmationManager:
-
     def __init__(self, ttl_seconds=300):
         self._requests = {}
         self._ttl = timedelta(seconds=ttl_seconds)

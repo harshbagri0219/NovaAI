@@ -1,13 +1,13 @@
-﻿import pytest
+import pytest
 
 from datetime import datetime, timedelta, UTC
 
 from core.confirmation import ConfirmationError, ConfirmationManager
-from core.interfaces import Capability, ConfirmationStatus
+from core.interfaces import Capability
+from core.confirmation import ConfirmationStatus
 from core.tool_adapter import ToolAdapter
 from core.tool_executor import ToolExecutor
 from core.tool_registry import ToolRegistry
-
 
 def make_tool(name="test", capability=Capability.STATE_CHANGING):
     return ToolAdapter(
@@ -15,7 +15,6 @@ def make_tool(name="test", capability=Capability.STATE_CHANGING):
         runnable=lambda: "ok",
         capability=capability,
     )
-
 
 class TestConfirmationManagerLifecycle:
     def test_create_request_returns_pending(self):
@@ -125,7 +124,6 @@ class TestConfirmationManagerLifecycle:
         manager = ConfirmationManager()
         with pytest.raises(ConfirmationError, match="not found"):
             manager.consume("missing", make_tool())
-
 
 class TestToolExecutorConfirmation:
     def test_confirm_creates_confirmation_request(self):
@@ -363,7 +361,7 @@ class TestToolExecutorConfirmation:
 
     def test_registry_verification_rejects_unregistered_tool(self):
         registry = ToolRegistry.from_plugin_map({
-            "time": lambda: "12:00",
+            "time": (lambda: "12:00", Capability.READ_ONLY),
         })
         manager = ConfirmationManager()
         executor = ToolExecutor(confirmation_manager=manager)
@@ -423,7 +421,6 @@ class TestToolExecutorConfirmation:
         assert executed.status.value == "error"
         assert "boom" in (executed.error or "")
 
-
 class TestRegression:
     def test_read_only_executes(self):
         executor = ToolExecutor()
@@ -455,7 +452,6 @@ class TestRegression:
         assert result.status.value == "error"
         assert "boom" in (result.error or "")
 
-
 class TestConfirmationIntegrity:
     def test_request_ids_are_unique(self):
         manager = ConfirmationManager()
@@ -467,7 +463,7 @@ class TestConfirmationIntegrity:
         assert request_b.request_id != request_c.request_id
         assert request_a.request_id != request_c.request_id
 
-    def test_approved_request_cannot_be_approved_again(self):
+    def test_approved_request_cannot_be_approved_again():
         manager = ConfirmationManager()
         tool = make_tool()
         request = manager.create_request(tool)
@@ -508,7 +504,6 @@ class TestConfirmationIntegrity:
         assert request.tool_name == "custom_tool"
         assert request.capability == Capability.STATE_CHANGING
         assert request.description == "test description"
-
 
 class TestContextIntegrity:
     def test_execute_approved_uses_stored_context_when_caller_does_not_supply(self):
@@ -614,7 +609,6 @@ class TestContextIntegrity:
         executed = executor.execute_confirmed(
             request.request_id,
             tool,
-            context=caller_context,
         )
         assert executed.status.value == "success"
         assert captured["context"] == stored_context
@@ -728,7 +722,6 @@ class TestContextIntegrity:
         executed = executor.execute_confirmed(
             request.request_id,
             tool,
-            context=caller_context,
         )
         assert executed.status.value == "success"
         assert captured["context"] == caller_context

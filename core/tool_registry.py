@@ -9,6 +9,8 @@ class ToolRegistry:
 
     def register(self, tool):
         if isinstance(tool, ToolAdapter):
+            if tool.capability is None:
+                raise ValueError("Tool capability cannot be None")
             self._tools[tool.name] = tool
             return tool
         raise TypeError("Only ToolAdapter instances may be registered")
@@ -22,14 +24,22 @@ class ToolRegistry:
     @classmethod
     def from_plugin_map(cls, plugin_map):
         registry = cls()
-        for name, runnable in plugin_map.items():
-            capability = registry._infer_capability(name, runnable)
-            tool = ToolAdapter(name=name, runnable=runnable, capability=capability)
-            registry.register(tool)
-        return registry
 
-    def _infer_capability(self, name, runnable):
-        read_only_intents = {"time", "help"}
-        if name in read_only_intents:
-            return Capability.READ_ONLY
-        return Capability.STATE_CHANGING
+        for name, entry in plugin_map.items():
+            if not isinstance(entry, tuple) or len(entry) != 2:
+                raise TypeError(
+                    f"Plugin '{name}' must provide "
+                    "(runnable, capability)"
+                )
+
+            runnable, capability = entry
+
+            tool = ToolAdapter(
+                name=name,
+                runnable=runnable,
+                capability=capability,
+            )
+
+            registry.register(tool)
+
+        return registry
