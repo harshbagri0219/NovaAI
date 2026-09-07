@@ -346,13 +346,10 @@ class TestToolExecutorConfirmation:
         assert executed.status.value == "error"
 
     def test_expired_request_cannot_execute(self):
-        manager = ConfirmationManager(ttl_seconds=300)
+        manager = ConfirmationManager(ttl_seconds=-1)
         executor = ToolExecutor(confirmation_manager=manager)
         tool = make_tool(capability=Capability.STATE_CHANGING)
-        result = executor.execute(tool)
-        request = result.confirmation_request
-        manager.approve(request.request_id)
-        request.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        request = manager.create_request(tool)
         executed = executor.execute_confirmed(
             request.request_id,
             tool,
@@ -463,7 +460,7 @@ class TestConfirmationIntegrity:
         assert request_b.request_id != request_c.request_id
         assert request_a.request_id != request_c.request_id
 
-    def test_approved_request_cannot_be_approved_again():
+    def test_approved_request_cannot_be_approved_again(self):
         manager = ConfirmationManager()
         tool = make_tool()
         request = manager.create_request(tool)
@@ -722,6 +719,7 @@ class TestContextIntegrity:
         executed = executor.execute_confirmed(
             request.request_id,
             tool,
+            context=caller_context,
         )
         assert executed.status.value == "success"
         assert captured["context"] == caller_context

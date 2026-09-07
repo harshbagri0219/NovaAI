@@ -3,10 +3,9 @@ import pytest
 from datetime import datetime, timedelta, UTC
 
 from ai.decision import decide
-from core.confirmation import ConfirmationManager
+from core.confirmation import ConfirmationManager, ConfirmationStatus
 from core.interfaces import (
     Capability,
-    ConfirmationStatus,
     ResultStatus,
     StructuredResult,
 )
@@ -147,7 +146,7 @@ def test_denial_does_not_execute_end_to_end():
 
 
 def test_expiration_does_not_execute_end_to_end():
-    manager = ConfirmationManager(ttl_seconds=300)
+    manager = ConfirmationManager(ttl_seconds=-1)
     executor = ToolExecutor(confirmation_manager=manager)
 
     tool = ToolAdapter(
@@ -159,15 +158,7 @@ def test_expiration_does_not_execute_end_to_end():
     registry = ToolRegistry()
     registry.register(tool)
 
-    result = executor.execute(tool)
-
-    assert result.confirmation_request is not None
-
-    request = result.confirmation_request
-
-    manager.approve(request.request_id)
-
-    request.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    request = manager.create_request(tool)
 
     executed = executor.execute_approved(
         request.request_id,

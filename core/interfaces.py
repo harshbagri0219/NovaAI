@@ -95,16 +95,8 @@ class ImmutableConfirmationRequest:
         return self._context
 
 
-@dataclass
 class ConfirmationRequest(ImmutableConfirmationRequest):
     """Convenient dataclass that inherits immutable behavior."""
-    request_id: str
-    tool_name: str
-    capability: 'Capability'
-    description: str
-    status: 'ConfirmationStatus' = 'pending'
-    expires_at: Optional[datetime] = None
-    context: Optional[Any] = None
 
     def __init__(self,
                  request_id: str,
