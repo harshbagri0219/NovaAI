@@ -36,7 +36,7 @@ class TestConfirmationManagerLifecycle:
         tool = make_tool()
         request = manager.create_request(tool)
         fetched = manager.get_request(request.request_id)
-        assert fetched is request
+        assert fetched is not request
         assert fetched.status == ConfirmationStatus.PENDING
 
     def test_approve_pending_request(self):
@@ -124,6 +124,66 @@ class TestConfirmationManagerLifecycle:
         manager = ConfirmationManager()
         with pytest.raises(ConfirmationError, match="not found"):
             manager.consume("missing", make_tool())
+
+
+class TestConfirmationAuthority:
+    def test_mutating_returned_status_cannot_authorize_execution(self):
+        manager = ConfirmationManager()
+        executor = ToolExecutor(confirmation_manager=manager)
+        tool = make_tool()
+        request = executor.execute(tool).confirmation_request
+
+        request.status = ConfirmationStatus.APPROVED
+
+        executed = executor.execute_confirmed(request.request_id, tool)
+
+        assert executed.status.value == "error"
+        assert manager.get_request(request.request_id).status == ConfirmationStatus.PENDING
+
+    def test_mutating_returned_expiration_does_not_affect_manager(self):
+        manager = ConfirmationManager()
+        request = manager.create_request(make_tool())
+        expires_at = request.expires_at
+
+        with pytest.raises(AttributeError):
+            request.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+
+        assert manager.get_request(request.request_id).expires_at == expires_at
+
+    def test_mutating_original_context_does_not_change_stored_context(self):
+        manager = ConfirmationManager()
+        context = {"nested": {"value": "authorized"}}
+        request = manager.create_request(make_tool(), context=context)
+
+        context["nested"]["value"] = "mutated"
+
+        assert manager.get_request(request.request_id).context == {
+            "nested": {"value": "authorized"}
+        }
+
+    def test_mutating_public_context_does_not_change_stored_context(self):
+        manager = ConfirmationManager()
+        request = manager.create_request(
+            make_tool(),
+            context={"nested": {"value": "authorized"}},
+        )
+
+        request.context["nested"]["value"] = "mutated"
+
+        assert manager.get_request(request.request_id).context == {
+            "nested": {"value": "authorized"}
+        }
+
+    def test_consume_rejects_same_name_and_capability_different_tool(self):
+        manager = ConfirmationManager()
+        bound_tool = make_tool(name="same")
+        replacement_tool = make_tool(name="same")
+        request = manager.create_request(bound_tool)
+        manager.approve(request.request_id)
+
+        with pytest.raises(ConfirmationError, match="identity mismatch"):
+            manager.consume(request.request_id, replacement_tool)
+
 
 class TestToolExecutorConfirmation:
     def test_confirm_creates_confirmation_request(self):
@@ -219,7 +279,7 @@ class TestToolExecutorConfirmation:
         )
         assert executed.status.value == "error"
         assert "capability mismatch" in (executed.error or "")
-        assert request.status == ConfirmationStatus.APPROVED
+        assert manager.get_request(request.request_id).status == ConfirmationStatus.APPROVED
 
     def test_wrong_tool_rejected_without_consuming_confirmation(self):
         manager = ConfirmationManager()
@@ -241,7 +301,7 @@ class TestToolExecutorConfirmation:
         )
         assert executed.status.value == "error"
         assert "mismatch" in (executed.error or "")
-        assert request.status == ConfirmationStatus.APPROVED
+        assert manager.get_request(request.request_id).status == ConfirmationStatus.APPROVED
 
     def test_unregistered_tool_rejected_without_consuming_confirmation(self):
         registry = ToolRegistry()
@@ -261,7 +321,7 @@ class TestToolExecutorConfirmation:
         )
         assert executed.status.value == "error"
         assert "not registered" in (executed.error or "")
-        assert request.status == ConfirmationStatus.APPROVED
+        assert manager.get_request(request.request_id).status == ConfirmationStatus.APPROVED
 
     def test_failed_validation_leaves_confirmation_approved(self):
         registry = ToolRegistry()
@@ -284,7 +344,7 @@ class TestToolExecutorConfirmation:
             registry=registry,
         )
         assert executed.status.value == "error"
-        assert request.status == ConfirmationStatus.APPROVED
+        assert manager.get_request(request.request_id).status == ConfirmationStatus.APPROVED
 
     def test_successful_validation_consumes_confirmation(self):
         manager = ConfirmationManager()
@@ -301,7 +361,7 @@ class TestToolExecutorConfirmation:
             tool,
         )
         assert executed.status.value == "success"
-        assert request.status == ConfirmationStatus.CONSUMED
+        assert manager.get_request(request.request_id).status == ConfirmationStatus.CONSUMED
 
     def test_second_execution_after_consumption_is_rejected(self):
         manager = ConfirmationManager()
@@ -322,7 +382,7 @@ class TestToolExecutorConfirmation:
             tool,
         )
         assert first.status.value == "success"
-        assert request.status == ConfirmationStatus.CONSUMED
+        assert manager.get_request(request.request_id).status == ConfirmationStatus.CONSUMED
         assert second.status.value == "error"
         assert "consumed" in (second.error or "")
 
@@ -489,7 +549,7 @@ class TestConfirmationIntegrity:
         assert request.capability == Capability.DESTRUCTIVE
         assert request.status == ConfirmationStatus.PENDING
         manager.approve(request.request_id)
-        assert request.status == ConfirmationStatus.APPROVED
+        assert manager.get_request(request.request_id).status == ConfirmationStatus.APPROVED
 
     def test_confirmation_request_preserves_tool_name_and_capability(self):
         manager = ConfirmationManager()

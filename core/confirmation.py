@@ -1,4 +1,6 @@
 import secrets
+from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime, timedelta, UTC
 from enum import Enum
 
@@ -14,6 +16,18 @@ class ConfirmationStatus(str, Enum):
     EXPIRED = "expired"
     CONSUMED = "consumed"
 
+
+@dataclass
+class _AuthorizationRecord:
+    tool: object
+    tool_name: str
+    capability: Capability
+    description: str
+    status: ConfirmationStatus
+    expires_at: datetime
+    context: object
+
+
 class ConfirmationManager:
     def __init__(self, ttl_seconds=300):
         self._requests = {}
@@ -27,55 +41,58 @@ class ConfirmationManager:
         ttl = ttl_seconds if ttl_seconds is not None else self._ttl.total_seconds()
         expires_at = datetime.now(UTC) + timedelta(seconds=ttl)
 
-        request = ConfirmationRequest(
-            request_id=request_id,
+        record = _AuthorizationRecord(
+            tool=tool,
             tool_name=getattr(tool, "name", "unknown"),
             capability=getattr(tool, "capability", Capability.STATE_CHANGING),
             description=description or f"Tool '{getattr(tool, 'name', 'unknown')}' requires confirmation",
             status=ConfirmationStatus.PENDING,
             expires_at=expires_at,
-            context=context,
+            context=self._snapshot_context(context),
         )
 
-        self._requests[request_id] = request
-        return request
+        self._requests[request_id] = record
+        return self._snapshot(request_id, record)
 
     def get_request(self, request_id):
-        request = self._requests.get(request_id)
-        if request is None:
+        record = self._requests.get(request_id)
+        if record is None:
             return None
 
-        if self._is_expired(request):
-            request.status = ConfirmationStatus.EXPIRED
+        if (
+            record.status in (ConfirmationStatus.PENDING, ConfirmationStatus.APPROVED)
+            and self._is_expired(record)
+        ):
+            record.status = ConfirmationStatus.EXPIRED
 
-        return request
+        return self._snapshot(request_id, record)
 
     def approve(self, request_id):
-        request = self._get_valid_request(request_id)
-        if request.status != ConfirmationStatus.PENDING:
+        record = self._get_valid_request(request_id)
+        if record.status != ConfirmationStatus.PENDING:
             raise ConfirmationError(
-                f"cannot approve request in status {request.status.value}"
+                f"cannot approve request in status {record.status.value}"
             )
-        request.status = ConfirmationStatus.APPROVED
-        return request
+        record.status = ConfirmationStatus.APPROVED
+        return self._snapshot(request_id, record)
 
     def deny(self, request_id):
-        request = self._get_valid_request(request_id)
-        if request.status != ConfirmationStatus.PENDING:
+        record = self._get_valid_request(request_id)
+        if record.status != ConfirmationStatus.PENDING:
             raise ConfirmationError(
-                f"cannot deny request in status {request.status.value}"
+                f"cannot deny request in status {record.status.value}"
             )
-        request.status = ConfirmationStatus.DENIED
-        return request
+        record.status = ConfirmationStatus.DENIED
+        return self._snapshot(request_id, record)
 
     def consume(self, request_id, tool):
-        request = self._get_valid_request(request_id)
-        if request.status != ConfirmationStatus.APPROVED:
+        record = self._get_valid_request(request_id)
+        if record.status != ConfirmationStatus.APPROVED:
             raise ConfirmationError(
-                f"cannot consume request in status {request.status.value}"
+                f"cannot consume request in status {record.status.value}"
             )
 
-        expected_name = request.tool_name
+        expected_name = record.tool_name
         actual_name = getattr(tool, "name", None)
 
         if actual_name != expected_name:
@@ -83,7 +100,7 @@ class ConfirmationManager:
                 f"tool mismatch: expected {expected_name}, got {actual_name}"
             )
 
-        expected_capability = request.capability
+        expected_capability = record.capability
         actual_capability = getattr(tool, "capability", None)
 
         if actual_capability != expected_capability:
@@ -91,17 +108,42 @@ class ConfirmationManager:
                 "tool capability mismatch"
             )
 
-        request.status = ConfirmationStatus.CONSUMED
-        return request
+        if tool is not record.tool:
+            raise ConfirmationError("tool identity mismatch")
+
+        record.status = ConfirmationStatus.CONSUMED
+        return self._snapshot(request_id, record)
 
     def _get_valid_request(self, request_id):
-        request = self._requests.get(request_id)
-        if request is None:
+        record = self._requests.get(request_id)
+        if record is None:
             raise ConfirmationError("request not found")
-        if self._is_expired(request):
-            request.status = ConfirmationStatus.EXPIRED
+        if (
+            record.status in (ConfirmationStatus.PENDING, ConfirmationStatus.APPROVED)
+            and self._is_expired(record)
+        ):
+            record.status = ConfirmationStatus.EXPIRED
             raise ConfirmationError("request expired")
-        return request
+        return record
+
+    def _snapshot(self, request_id, record):
+        return ConfirmationRequest(
+            request_id=request_id,
+            tool_name=record.tool_name,
+            capability=record.capability,
+            description=record.description,
+            status=record.status,
+            expires_at=record.expires_at,
+            context=self._snapshot_context(record.context),
+        )
+
+    def _snapshot_context(self, context):
+        if context is None:
+            return None
+        try:
+            return deepcopy(context)
+        except Exception as exc:
+            raise ConfirmationError("context cannot be safely copied") from exc
 
     def _is_expired(self, request):
         if request.expires_at is None:
