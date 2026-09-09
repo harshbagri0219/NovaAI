@@ -3,32 +3,51 @@ from ai.task_coordinator import coordinate
 from ai.result_analyzer import analyze_results
 from brain.brain import Brain
 from core.controlled_router import handle_controlled_command
+from core.execution_service import ExecutionService, get_execution_service
 from core.tool_catalog import get_registry
-from core.tool_executor import ToolExecutor
-from core.interfaces import ResultStatus, StructuredResult
+from core.interfaces import StructuredResult
 
 
 brain = Brain()
 
-_registry = get_registry()
-_executor = ToolExecutor()
 
+def decide(
+    user,
+    memory,
+    registry=None,
+    executor=None,
+    execution_service=None,
+):
+    registry = registry or get_registry()
 
-def decide(user, memory, registry=None, executor=None):
-    registry = registry or _registry
-    executor = executor or _executor
+    # -------------------------------------------------
+    # Execution service selection
+    # -------------------------------------------------
+    #
+    # executor= is retained only as a compatibility seam
+    # for existing tests. Normal production execution
+    # uses the single runtime ExecutionService.
+    #
+    if execution_service is not None:
+        service = execution_service
+    elif executor is not None:
+        service = ExecutionService(executor=executor)
+    else:
+        service = get_execution_service()
 
-    # -----------------------------
+    # -------------------------------------------------
     # Learning Engine
-    # -----------------------------
+    # -------------------------------------------------
+
     learned = learn(user)
 
     if learned:
         return learned
 
-    # -----------------------------
+    # -------------------------------------------------
     # Task Coordinator
-    # -----------------------------
+    # -------------------------------------------------
+
     task_result = coordinate(user, memory)
 
     if task_result:
@@ -38,14 +57,15 @@ def decide(user, memory, registry=None, executor=None):
         if response:
             return response
 
-    # -----------------------------
-    # Plugin Router
-    # -----------------------------
+    # -------------------------------------------------
+    # Controlled Plugin Router
+    # -------------------------------------------------
+
     response = handle_controlled_command(
         user,
         memory,
         registry=registry,
-        executor=executor,
+        execution_service=service,
     )
 
     if isinstance(response, StructuredResult):
@@ -54,9 +74,10 @@ def decide(user, memory, registry=None, executor=None):
     if response:
         return response
 
-    # -----------------------------
+    # -------------------------------------------------
     # AI Brain
-    # -----------------------------
+    # -------------------------------------------------
+
     response = brain.think(user)
 
     if response:
