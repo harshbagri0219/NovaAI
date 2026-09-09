@@ -1,3 +1,4 @@
+from brain.intelligence import respond as llm_respond
 from ai.intent import detect_intent
 from brain.context import last_conversation
 from brain.context_builder import build_context
@@ -261,6 +262,16 @@ class Brain:
             )
 
         # -----------------------------
+        # Local LLM Intelligence
+        # -----------------------------
+
+        llm_response = llm_respond(user)
+
+        if llm_response:
+            return llm_response
+
+        # -----------------------------
         # Default Response
         # -----------------------------
+
         return "I am still learning."
